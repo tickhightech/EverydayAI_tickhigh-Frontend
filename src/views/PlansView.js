@@ -5,7 +5,8 @@ import { Modal } from '../components/Modal.js';
 import { icons } from '../components/icons.js';
 
 export class PlansView {
-  constructor(onNavigate) {
+  constructor(onNavigate, operatorId = null) {
+    this.operatorId = operatorId;
     this.onNavigate = onNavigate;
     this.plans = [];
   }
@@ -57,6 +58,10 @@ export class PlansView {
 
     createBtn.onclick = () => this.openPlanModal(container);
     refreshBtn.onclick = () => this.loadPlans(container);
+    if (this.operatorId) {
+      filterSelect.value = this.operatorId;
+      filterSelect.closest('.flex-between').querySelector('div').style.display = 'none';
+    }
     filterSelect.onchange = () => {
       AppState.setActiveOperator(filterSelect.value);
     };
@@ -67,13 +72,14 @@ export class PlansView {
   }
 
   async loadPlans(container) {
-    const filterOp = container.querySelector('#plans-operator-filter')?.value;
+    const filterOp = this.operatorId || container.querySelector('#plans-operator-filter')?.value;
     const params = filterOp ? { operatorId: filterOp } : {};
 
     try {
       const res = await ApiService.get('/api/v1/admin/plans', params);
       if (res.success && Array.isArray(res.data)) {
         this.plans = res.data;
+        this.onPlansLoaded?.(this.plans);
         this.renderPlans(container, this.plans);
       }
     } catch (err) {
@@ -117,9 +123,19 @@ export class PlansView {
                   ${operator.name}
                 </span>
               ` : ''}
+              ${plan.operatorPlanCode ? `
+                <span class="badge" style="font-size: 10px; background: rgba(16, 185, 129, 0.15); color: #34d399; font-family: var(--font-mono);" title="Carrier purchaseTypeId">
+                  CODE: ${plan.operatorPlanCode}
+                </span>
+              ` : ''}
+              ${plan.operatorSubServiceId ? `
+                <span class="badge" style="font-size: 10px; background: rgba(14, 165, 233, 0.15); color: #38bdf8; font-family: var(--font-mono);" title="${plan.operatorSubServiceId}">
+                  SUB-SVC: ${plan.operatorSubServiceId.slice(0, 14)}...
+                </span>
+              ` : ''}
             </div>
-            <span class="badge ${plan.status === 'active' ? 'badge-success' : 'badge-danger'}">
-              ${plan.status || 'ACTIVE'}
+            <span class="badge ${plan.isActive ? 'badge-success' : 'badge-danger'}">
+              ${plan.isActive ? 'ACTIVE' : 'INACTIVE'}
             </span>
           </div>
 
@@ -173,8 +189,8 @@ export class PlansView {
 
   openPlanModal(container, editId = null) {
     const existing = editId ? this.plans.find(p => p.id === editId) : null;
-    const filterOp = container.querySelector('#plans-operator-filter')?.value;
-    const defaultOpId = AppState.activeOperatorId || AppState.operators[0]?.id;
+    const filterOp = this.operatorId || container.querySelector('#plans-operator-filter')?.value;
+    const defaultOpId = this.operatorId || AppState.activeOperatorId || AppState.operators[0]?.id;
 
     Modal.open({
       title: existing ? `Edit Pricing Pack — ${existing.name}` : 'Create Subscription Pack',
@@ -183,7 +199,7 @@ export class PlansView {
         <form id="plan-form">
           <div class="form-group">
             <label class="form-label">Assigned Carrier Operator *</label>
-            <select id="plan-operator" class="form-select" ${existing ? 'disabled' : ''}>
+            <select id="plan-operator" class="form-select" ${existing || this.operatorId ? 'disabled' : ''}>
               ${AppState.operators.map(op => `
                 <option value="${op.id}" ${(existing ? existing.operatorId === op.id : (filterOp === op.id || op.id === defaultOpId)) ? 'selected' : ''}>
                   ${op.name} (${op.countryCode})
@@ -194,7 +210,7 @@ export class PlansView {
 
           <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
             <div class="form-group">
-              <label class="form-label">Plan Display Name *</label>
+              <label class="form-label">Default / Internal Plan Name *</label>
               <input type="text" id="plan-name" class="form-input" placeholder="e.g. Daily Power Pass" required value="${existing?.name || ''}" />
             </div>
 
@@ -211,6 +227,7 @@ export class PlansView {
                 <option value="daily" ${existing?.periodType === 'daily' ? 'selected' : ''}>Daily</option>
                 <option value="weekly" ${existing?.periodType === 'weekly' ? 'selected' : ''}>Weekly</option>
                 <option value="monthly" ${existing?.periodType === 'monthly' ? 'selected' : ''}>Monthly</option>
+                <option value="yearly" ${existing?.periodType === 'yearly' ? 'selected' : ''}>Yearly</option>
               </select>
             </div>
 
@@ -234,6 +251,33 @@ export class PlansView {
             <div class="form-group">
               <label class="form-label">Max Token Quota *</label>
               <input type="number" id="plan-tokens" class="form-input" min="1000" step="1000" value="${existing?.maxTokens || 10000}" required />
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label class="form-label">Message quota<input id="plan-messages" class="form-input" type="number" min="1" value="${existing?.maxMessages ?? ''}" placeholder="No message limit"></label>
+            <label class="form-label">Quota mode<select id="plan-quota-mode" class="form-select">${['tokens','messages','combined','unlimited'].map(v => `<option ${v === (existing?.quotaMode || 'tokens') ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+            <label class="form-label">Quota reset<select id="plan-quota-reset" class="form-select">${['daily','period','never'].map(v => `<option ${v === (existing?.quotaResetPeriod || 'daily') ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+            <label class="form-label">Display order<input id="plan-order" class="form-input" type="number" value="${existing?.displayOrder ?? 0}"></label>
+            <label><input id="plan-active" type="checkbox" ${existing?.isActive !== false ? 'checked' : ''}> Available to subscribers</label>
+          </div>
+
+          <!-- Carrier Pack Mapping Section -->
+          <div style="background: rgba(99, 102, 241, 0.06); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: var(--radius-sm); padding: 12px; margin: 12px 0;">
+            <div style="font-size: 12px; font-weight: 600; color: #a5b4fc; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+              <span>📡 Carrier Gateway Pack Mapping (Optional)</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label class="form-label" style="font-size: 11px;">Operator Pack Code / purchaseTypeId</label>
+                <input type="text" id="plan-op-code" class="form-input" style="font-family: var(--font-mono); font-size: 11.5px;" placeholder="e.g. 2, 3, 4, daily" value="${existing?.operatorPlanCode || ''}" />
+                <span style="font-size: 10px; color: var(--text-muted); display: block; margin-top: 3px;">Used for Universe DCB (e.g. 3 for weekly)</span>
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px;">Sub-Service Identifier (subServiceId)</label>
+                <input type="text" id="plan-sub-service" class="form-input" style="font-family: var(--font-mono); font-size: 11.5px;" placeholder="e.g. Health Portal pass jour" value="${existing?.operatorSubServiceId || ''}" />
+                <span style="font-size: 10px; color: var(--text-muted); display: block; margin-top: 3px;">Used for Orange BF / Subs_Engine</span>
+              </div>
             </div>
           </div>
 
@@ -261,7 +305,7 @@ export class PlansView {
           btn.disabled = true;
           btn.innerText = 'Saving Pack...';
 
-          const selectedOpId = existing?.operatorId || overlay.querySelector('#plan-operator')?.value || defaultOpId;
+          const selectedOpId = this.operatorId || existing?.operatorId || overlay.querySelector('#plan-operator')?.value || defaultOpId;
 
           const payload = {
             name: overlay.querySelector('#plan-name').value.trim(),
@@ -271,8 +315,15 @@ export class PlansView {
             price: overlay.querySelector('#plan-price').value.trim(),
             currencyCode: overlay.querySelector('#plan-currency').value.trim().toUpperCase(),
             maxTokens: parseInt(overlay.querySelector('#plan-tokens').value, 10),
+            maxMessages: Number(overlay.querySelector('#plan-messages').value) || null,
+            quotaMode: overlay.querySelector('#plan-quota-mode').value,
+            quotaResetPeriod: overlay.querySelector('#plan-quota-reset').value,
+            displayOrder: Number(overlay.querySelector('#plan-order').value),
+            isActive: overlay.querySelector('#plan-active').checked,
             isHighlighted: overlay.querySelector('#plan-highlight').checked,
             highlightBadge: overlay.querySelector('#plan-badge-text').value.trim() || undefined,
+            operatorPlanCode: overlay.querySelector('#plan-op-code')?.value.trim() || null,
+            operatorSubServiceId: overlay.querySelector('#plan-sub-service')?.value.trim() || null,
             operatorId: selectedOpId || undefined,
           };
 

@@ -11,8 +11,7 @@ export class Sidebar {
     const navItems = [
       { id: 'overview', label: 'Overview', icon: icons.dashboard },
       { id: 'operators', label: 'Operators', icon: icons.operators },
-      { id: 'agents', label: 'AI Agent Studio', icon: icons.agents },
-      { id: 'plans', label: 'Plans & Pricing', icon: icons.plans },
+      { id: 'agents', label: 'AI Categories', icon: icons.agents },
       { id: 'providers', label: 'Gateways & Flows', icon: icons.providers },
       { id: 'subscribers', label: 'Subscribers', icon: icons.subscribers },
       { id: 'notifications', label: 'Broadcast & Audit', icon: icons.notifications },
@@ -33,23 +32,9 @@ export class Sidebar {
         </div>
       </div>
 
-      <div style="padding: 16px 20px 8px;">
-        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.06em; margin-bottom: 6px;">
-          Active Carrier
-        </div>
-        <select id="sidebar-operator-select" class="form-select" style="padding: 7px 10px; font-size: 12px; background: #0c0e18;">
-          <option value="">Platform-Wide (All)</option>
-          ${AppState.operators.map(op => `
-            <option value="${op.id}" ${op.id === AppState.activeOperatorId ? 'selected' : ''}>
-              ${op.name} (${op.countryCode || 'IN'})
-            </option>
-          `).join('')}
-        </select>
-      </div>
-
       <nav style="flex: 1; padding: 12px 0; overflow-y: auto;">
         ${navItems.map(item => `
-          <a href="#${item.id}" class="nav-item ${this.activeRoute === item.id ? 'active' : ''}" data-route="${item.id}">
+          <a href="#${item.id}" class="nav-item ${this.activeRoute === item.id || (item.id === 'operators' && this.activeRoute.startsWith('operator-detail')) ? 'active' : ''}" data-route="${item.id}">
             ${item.icon}
             <span>${item.label}</span>
           </a>

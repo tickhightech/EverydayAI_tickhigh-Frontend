@@ -7,6 +7,7 @@ import { Header } from './components/Header.js';
 import { LoginView } from './views/LoginView.js';
 import { OverviewView } from './views/OverviewView.js';
 import { OperatorsView } from './views/OperatorsView.js';
+import { OperatorDetailView } from './views/OperatorDetailView.js';
 import { AgentsView } from './views/AgentsView.js';
 import { PlansView } from './views/PlansView.js';
 import { ProvidersView } from './views/ProvidersView.js';
@@ -90,7 +91,15 @@ class App {
   }
 
   createViewComponent(route) {
-    switch (route) {
+    const [baseRoute, queryString] = route.split('?');
+    const params = new URLSearchParams(queryString || '');
+
+    if (baseRoute === 'operator-detail') {
+      const opId = params.get('id') || AppState.activeOperatorId || (AppState.operators[0]?.id);
+      return new OperatorDetailView((r) => this.navigateTo(r), opId);
+    }
+
+    switch (baseRoute) {
       case 'overview':
         return new OverviewView((r) => this.navigateTo(r));
       case 'operators':
@@ -98,7 +107,7 @@ class App {
       case 'agents':
         return new AgentsView((r) => this.navigateTo(r));
       case 'plans':
-        return new PlansView((r) => this.navigateTo(r));
+        { const view = new OperatorDetailView((r) => this.navigateTo(r), AppState.activeOperatorId); view.activeTab = 'tab-plans'; return view; }
       case 'providers':
         return new ProvidersView((r) => this.navigateTo(r));
       case 'subscribers':

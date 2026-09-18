@@ -261,47 +261,80 @@ export class ProvidersView {
     });
   }
 
-  openConfigModal(providerType) {
+  async openConfigModal(providerType) {
     const activeOp = AppState.getActiveOperator() || AppState.operators[0];
     if (!activeOp) {
       Toast.error('Please onboard or select an operator first');
       return;
     }
 
+    let existingConfig = null;
+    try {
+      const res = await ApiService.get(`/api/v1/admin/providers/${activeOp.id}/${providerType}/config`);
+      if (res && res.success && res.data) {
+        existingConfig = res.data;
+      }
+    } catch (err) {
+      // Ignored if not yet configured
+    }
+
+    const defaultEndpoint = existingConfig?.sendEndpoint || existingConfig?.chargeEndpoint || existingConfig?.endpoint || `https://api.${activeOp.subdomain || 'airtel'}.com/v1/${providerType}`;
+    const defaultMethod = existingConfig?.sendMethod || existingConfig?.httpMethod || existingConfig?.method || 'POST';
+    const defaultFlowType = existingConfig?.flowType || (providerType === 'dcb' ? 'direct_charge' : 'operator_api');
+    const defaultAuthType = existingConfig?.authType || 'bearer';
+    const defaultTemplate = typeof existingConfig?.sendRequestTemplate === 'string'
+      ? existingConfig.sendRequestTemplate
+      : typeof existingConfig?.requestTemplate === 'string'
+        ? existingConfig.requestTemplate
+        : (existingConfig?.sendRequestTemplate || existingConfig?.requestTemplate)
+          ? JSON.stringify(existingConfig.sendRequestTemplate || existingConfig.requestTemplate, null, 2)
+          : '';
+    const defaultSyncEndpoint = existingConfig?.syncEndpoint || '';
+
     Modal.open({
       title: `Configure ${providerType.toUpperCase()} Gateway — ${activeOp.name}`,
-      maxWidth: '600px',
+      maxWidth: '640px',
       contentHtml: `
         <form id="save-config-form">
           <div class="form-group">
             <label class="form-label">Adapter Flow Type</label>
             <select id="config-flow" class="form-select">
-              <option value="operator_api">Operator-Managed REST API</option>
-              <option value="header_enrichment">Header Enrichment (Zero-Click Cellular)</option>
-              <option value="direct_charge">Direct Server Charge (DCB)</option>
+              <option value="operator_api" ${defaultFlowType === 'operator_api' ? 'selected' : ''}>Operator-Managed REST API</option>
+              <option value="header_enrichment" ${defaultFlowType === 'header_enrichment' ? 'selected' : ''}>Header Enrichment (Zero-Click Cellular)</option>
+              <option value="direct_charge" ${defaultFlowType === 'direct_charge' ? 'selected' : ''}>Direct Server Charge (DCB)</option>
+              <option value="custom" ${defaultFlowType === 'custom' ? 'selected' : ''}>Pluggable Flow Strategy</option>
             </select>
           </div>
 
           <div class="form-group">
             <label class="form-label">Gateway Endpoint URL *</label>
-            <input type="url" id="config-endpoint" class="form-input" value="https://api.${activeOp.subdomain || 'airtel'}.com/v1/${providerType}" required />
+            <input type="url" id="config-endpoint" class="form-input" value="${defaultEndpoint}" required />
           </div>
+
+          ${providerType === 'dcb' ? `
+          <div class="form-group">
+            <label class="form-label">Subscription Engine Sync Endpoint (Optional)</label>
+            <input type="url" id="config-sync-endpoint" class="form-input" value="${defaultSyncEndpoint}" placeholder="e.g. http://domain.com:8080/Subs_Engine/subscription/sync" style="font-family: var(--font-mono); font-size: 12px;" />
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">For Orange BF / external subscription engine activation sync after verification.</div>
+          </div>
+          ` : ''}
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div class="form-group">
               <label class="form-label">HTTP Method</label>
               <select id="config-method" class="form-select">
-                <option value="POST">POST</option>
-                <option value="GET">GET</option>
+                <option value="POST" ${defaultMethod === 'POST' ? 'selected' : ''}>POST</option>
+                <option value="GET" ${defaultMethod === 'GET' ? 'selected' : ''}>GET</option>
               </select>
             </div>
 
             <div class="form-group">
               <label class="form-label">Authentication Scheme</label>
               <select id="config-auth-type" class="form-select">
-                <option value="bearer">Bearer Token</option>
-                <option value="basic">Basic Auth</option>
-                <option value="api_key">X-API-Key Header</option>
+                <option value="bearer" ${defaultAuthType.toLowerCase() === 'bearer' ? 'selected' : ''}>Bearer Token</option>
+                <option value="basic" ${defaultAuthType.toLowerCase() === 'basic' ? 'selected' : ''}>Basic Auth</option>
+                <option value="api_key" ${defaultAuthType.toLowerCase() === 'api_key' ? 'selected' : ''}>X-API-Key Header</option>
+                <option value="none" ${defaultAuthType.toLowerCase() === 'none' ? 'selected' : ''}>None / URL Params</option>
               </select>
             </div>
           </div>
@@ -311,9 +344,17 @@ export class ProvidersView {
             <input type="password" id="config-secret" class="form-input" placeholder="telco_prod_secret_key_••••••••" value="carrier_secret_sample_key" required />
           </div>
 
+          <div class="form-group">
+            <label class="form-label">Request Template / Payload Pattern (Optional)</label>
+            <textarea id="config-template" class="form-textarea" rows="4" style="font-family: var(--font-mono); font-size: 11.5px;" placeholder='{\n  "msisdn": "{{msisdn}}",\n  "purchaseTypeId": {{planCode}},\n  "serviceId": "{{serviceId}}"\n}'>${defaultTemplate}</textarea>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+              Supports dynamic macros: <code>{{msisdn}}</code>, <code>{{planCode}}</code>, <code>{{serviceId}}</code>, <code>{{otp}}</code> or <code>#MSISDN#</code>.
+            </div>
+          </div>
+
           <div class="modal-footer" style="margin: 20px -20px -20px; padding: 14px 20px;">
             <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-close-btn').click()">Cancel</button>
-            <button type="submit" id="save-config-btn" class="btn btn-primary">Encrypt & Save Config</button>
+            <button type="submit" id="save-config-btn" class="btn btn-primary">Encrypt &amp; Save Config</button>
           </div>
         </form>
       `,
@@ -325,15 +366,23 @@ export class ProvidersView {
           btn.disabled = true;
 
           try {
-            await ApiService.post(`/api/v1/admin/providers/${activeOp.id}/${providerType}/config`, {
+            const payload = {
               flowType: overlay.querySelector('#config-flow').value,
               endpoint: overlay.querySelector('#config-endpoint').value,
               method: overlay.querySelector('#config-method').value,
               authType: overlay.querySelector('#config-auth-type').value,
               credentials: {
                 secret: overlay.querySelector('#config-secret').value
-              }
-            });
+              },
+              requestTemplate: overlay.querySelector('#config-template').value.trim() || null,
+            };
+
+            const syncInput = overlay.querySelector('#config-sync-endpoint');
+            if (syncInput) {
+              payload.syncEndpoint = syncInput.value.trim() || null;
+            }
+
+            await ApiService.post(`/api/v1/admin/providers/${activeOp.id}/${providerType}/config`, payload);
             Toast.success(`${providerType.toUpperCase()} gateway configuration stored securely!`);
             close();
           } catch (err) {

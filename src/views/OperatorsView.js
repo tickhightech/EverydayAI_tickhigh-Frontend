@@ -2,7 +2,7 @@ import { ApiService } from '../services/api.js';
 import { AppState } from '../services/state.js';
 import { Toast } from '../components/Toast.js';
 import { Modal } from '../components/Modal.js';
-import { icons } from '../components/icons.js';
+import { icons, getCategoryIcon } from '../components/icons.js';
 
 export class OperatorsView {
   constructor(onNavigate) {
@@ -114,11 +114,11 @@ export class OperatorsView {
       <tr>
         <td>
           <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="width: 32px; height: 32px; border-radius: var(--radius-sm); background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--accent); flex-shrink: 0;">
+            <div class="view-op-detail-btn" data-id="${op.id}" style="width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--accent); flex-shrink: 0; cursor: pointer;" title="View Details">
               ${op.name?.charAt(0) || 'O'}
             </div>
             <div>
-              <div style="font-weight: 600; color: var(--text-primary);">${op.name}</div>
+              <div class="view-op-detail-btn" data-id="${op.id}" style="font-weight: 600; color: var(--text-primary); cursor: pointer;" title="View Details">${op.name}</div>
               <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">${op.id}</div>
             </div>
           </div>
@@ -131,11 +131,14 @@ export class OperatorsView {
         <td><span class="badge ${op.status === 'active' ? 'badge-success' : 'badge-warning'}">${op.status}</span></td>
         <td><span style="font-size: 12px; color: var(--text-secondary);">${op.contactEmail || 'ops@carrier.com'}</span></td>
         <td style="text-align: right;">
-          <div style="display: inline-flex; gap: 4px;">
+          <div style="display: inline-flex; gap: 6px; align-items: center;">
+            <button class="btn btn-primary btn-sm view-op-detail-btn" data-id="${op.id}" title="View Operator Detail Screen" style="padding: 4px 10px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+              <span>Detail View</span> &rarr;
+            </button>
             <button class="btn btn-secondary btn-icon edit-op-btn" data-id="${op.id}" title="Edit Operator Profile & Status">
               ${icons.edit}
             </button>
-            <button class="btn btn-secondary btn-icon edit-theme-btn" data-id="${op.id}" title="Branding Theme">
+            <button class="btn btn-secondary btn-icon edit-theme-btn" data-id="${op.id}" title="Branding Theme & SDUI Screens">
               ${icons.palette}
             </button>
             <button class="btn btn-secondary btn-icon edit-settings-btn" data-id="${op.id}" title="Carrier Settings">
@@ -152,6 +155,12 @@ export class OperatorsView {
       </tr>
     `).join('');
 
+    tbody.querySelectorAll('.view-op-detail-btn').forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.getAttribute('data-id');
+        this.onNavigate(`operator-detail?id=${id}`);
+      };
+    });
     tbody.querySelectorAll('.edit-op-btn').forEach(btn => {
       btn.onclick = () => this.openEditOperatorModal(btn.getAttribute('data-id'), container);
     });
@@ -248,7 +257,6 @@ export class OperatorsView {
     let operator = AppState.operators.find(o => o.id === operatorId);
     if (!operator) return;
 
-    // Fetch fresh operator details with theme from backend
     try {
       const res = await ApiService.get(`/api/v1/admin/operators/${operatorId}`);
       if (res.success && res.data) {
@@ -261,129 +269,230 @@ export class OperatorsView {
     const theme = operator.theme || {};
     const initialPrimary = theme.primaryColor || '#6C5CE7';
     const initialSecondary = theme.secondaryColor || '#00B894';
+    const initialBg = theme.backgroundColor || '#0A0A0A';
+    const initialText = theme.textColor || '#FFFFFF';
+    const initialCardBg = theme.cardBgColor || '#1A1A2E';
     const initialFont = theme.fontFamily || 'Inter';
     const initialRadius = theme.borderRadius || '14px';
     const initialLogo = theme.logoUrl || '';
+    const initialFavicon = theme.faviconUrl || '';
+    const initialHero = theme.heroImageUrl || '';
+    const initialCss = theme.customCss || '';
+
+    const flowScreens = theme.flowScreens || {};
+    const msisdnScreen = flowScreens.msisdnScreen || {};
+    const planScreen = flowScreens.planScreen || {};
+    const otpScreen = flowScreens.otpScreen || {};
+    const dashboardScreen = flowScreens.dashboardScreen || {};
 
     Modal.open({
-      title: `Branding & Theme Tokens — ${operator.name}`,
-      maxWidth: '620px',
+      title: `Theme & Subscription Flow Screens — ${operator.name}`,
+      maxWidth: '720px',
       contentHtml: `
+        <div style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
+          <button type="button" id="tab-btn-branding" class="btn btn-primary btn-sm" style="font-size: 12px;">🎨 Brand & Colors</button>
+          <button type="button" id="tab-btn-flows" class="btn btn-secondary btn-sm" style="font-size: 12px;">📱 Subscription Flow Screens (SDUI)</button>
+        </div>
+
         <form id="theme-editor-form">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-            <div class="form-group">
-              <label class="form-label">Primary Brand Color</label>
-              <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="color" id="theme-primary" value="${initialPrimary}" style="height: 34px; width: 40px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); background: none; cursor: pointer;" />
-                <input type="text" id="theme-primary-text" class="form-input" value="${initialPrimary}" placeholder="#hex" />
+          <!-- TAB 1: BRANDING & COLORS -->
+          <div id="tab-pane-branding">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px;">
+              <div class="form-group">
+                <label class="form-label">Primary Brand Color</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <input type="color" id="theme-primary" value="${initialPrimary}" style="height: 34px; width: 40px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); background: none; cursor: pointer;" />
+                  <input type="text" id="theme-primary-text" class="form-input" value="${initialPrimary}" placeholder="#hex" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Secondary / Accent Color</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <input type="color" id="theme-secondary" value="${initialSecondary}" style="height: 34px; width: 40px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); background: none; cursor: pointer;" />
+                  <input type="text" id="theme-secondary-text" class="form-input" value="${initialSecondary}" placeholder="#hex" />
+                </div>
               </div>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Secondary / Accent Color</label>
-              <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="color" id="theme-secondary" value="${initialSecondary}" style="height: 34px; width: 40px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); background: none; cursor: pointer;" />
-                <input type="text" id="theme-secondary-text" class="form-input" value="${initialSecondary}" placeholder="#hex" />
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+              <div class="form-group">
+                <label class="form-label">Background Color</label>
+                <input type="text" id="theme-bg" class="form-input" value="${initialBg}" placeholder="#0A0A0A" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Text Color</label>
+                <input type="text" id="theme-text" class="form-input" value="${initialText}" placeholder="#FFFFFF" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Card Background</label>
+                <input type="text" id="theme-card-bg" class="form-input" value="${initialCardBg}" placeholder="#1A1A2E" />
               </div>
             </div>
-          </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-            <div class="form-group">
-              <label class="form-label">Font Family</label>
-              <select id="theme-font" class="form-select">
-                <option value="Inter" ${initialFont === 'Inter' ? 'selected' : ''}>Inter (Clean Modern)</option>
-                <option value="Outfit" ${initialFont === 'Outfit' ? 'selected' : ''}>Outfit (Display Rounded)</option>
-                <option value="Roboto" ${initialFont === 'Roboto' ? 'selected' : ''}>Roboto (Classic)</option>
-                <option value="Cairo" ${initialFont === 'Cairo' ? 'selected' : ''}>Cairo (Arabic / RTL)</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Card Border Radius</label>
-              <select id="theme-radius" class="form-select">
-                <option value="8px" ${initialRadius === '8px' ? 'selected' : ''}>8px (Compact)</option>
-                <option value="14px" ${initialRadius === '14px' ? 'selected' : ''}>14px (Modern Soft)</option>
-                <option value="20px" ${initialRadius === '20px' ? 'selected' : ''}>20px (Rounded)</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Operator Logo SVG/PNG URL</label>
-            <input type="url" id="theme-logo" class="form-input" placeholder="https://assets.tickhigh.com/logos/airtel.svg" value="${initialLogo}" />
-          </div>
-
-          <!-- Live Theme Preview Sandbox -->
-          <div style="margin-top: 14px; padding: 12px; border-radius: var(--radius-md); background: var(--bg-inset); border: 1px solid var(--border-subtle);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <span style="font-size: 10.5px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">
-                Live Subscriber Theme Preview
-              </span>
-              <span id="preview-secondary-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; background: ${initialSecondary}22; color: ${initialSecondary}; border: 1px solid ${initialSecondary}55;">
-                Accent Color Active
-              </span>
-            </div>
-            <div id="theme-preview-box" style="padding: 14px; border-radius: ${initialRadius}; border: 1px solid rgba(255,255,255,0.08); background: var(--bg-surface); display: flex; align-items: center; justify-content: space-between;">
-              <div>
-                <h4 id="preview-title" style="color: #fff; margin-bottom: 2px; font-size: 14px; font-family: ${initialFont};">${operator.name} AI Pass</h4>
-                <div style="font-size: 11px; color: var(--text-muted);">₹5 / day with direct carrier billing</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px;">
+              <div class="form-group">
+                <label class="form-label">Font Family</label>
+                <select id="theme-font" class="form-select">
+                  <option value="Inter" ${initialFont === 'Inter' ? 'selected' : ''}>Inter (Clean Modern)</option>
+                  <option value="Outfit" ${initialFont === 'Outfit' ? 'selected' : ''}>Outfit (Display Rounded)</option>
+                  <option value="Roboto" ${initialFont === 'Roboto' ? 'selected' : ''}>Roboto (Classic)</option>
+                  <option value="Cairo" ${initialFont === 'Cairo' ? 'selected' : ''}>Cairo (Arabic / RTL)</option>
+                </select>
               </div>
-              <button type="button" id="preview-btn" class="btn" style="background: ${initialPrimary}; color: white; height: 32px; padding: 0 16px; border-radius: 6px;">
-                Subscribe
-              </button>
+
+              <div class="form-group">
+                <label class="form-label">Card Border Radius</label>
+                <select id="theme-radius" class="form-select">
+                  <option value="8px" ${initialRadius === '8px' ? 'selected' : ''}>8px (Compact)</option>
+                  <option value="12px" ${initialRadius === '12px' ? 'selected' : ''}>12px (Standard)</option>
+                  <option value="14px" ${initialRadius === '14px' ? 'selected' : ''}>14px (Modern Soft)</option>
+                  <option value="20px" ${initialRadius === '20px' ? 'selected' : ''}>20px (Rounded)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+              <div class="form-group">
+                <label class="form-label">Operator Logo URL</label>
+                <input type="url" id="theme-logo" class="form-input" placeholder="https://assets.tickhigh.com/logos/airtel.svg" value="${initialLogo}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Favicon URL</label>
+                <input type="url" id="theme-favicon" class="form-input" placeholder="https://assets.tickhigh.com/logos/favicon.ico" value="${initialFavicon}" />
+              </div>
+            </div>
+
+            <div class="form-group mb-3">
+              <label class="form-label">Hero Illustration / Banner URL</label>
+              <input type="url" id="theme-hero" class="form-input" placeholder="https://assets.tickhigh.com/hero-banner.webp" value="${initialHero}" />
+            </div>
+
+            <div class="form-group mb-3">
+              <label class="form-label">Custom CSS Overrides</label>
+              <textarea id="theme-css" class="form-textarea" rows="2" style="font-family: var(--font-mono); font-size: 11px;" placeholder=".btn-brand { font-weight: 700; }">${initialCss}</textarea>
+            </div>
+          </div>
+
+          <!-- TAB 2: FLOW SCREENS (SDUI) -->
+          <div id="tab-pane-flows" style="display: none; max-height: 420px; overflow-y: auto; padding-right: 6px;">
+            <div style="background: var(--bg-inset); border: 1px solid var(--border-subtle); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 14px;">
+              <div style="font-size: 13px; font-weight: 600; color: var(--brand-cyan); margin-bottom: 8px;">1. Mobile Number Entry Screen (MSISDN)</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+                <div class="form-group">
+                  <label class="form-label" style="font-size: 11px;">Screen Title</label>
+                  <input type="text" id="flow-msisdn-title" class="form-input" style="font-size: 12px;" value="${msisdnScreen.title || 'Enter your mobile number'}" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" style="font-size: 11px;">Continue Button Text</label>
+                  <input type="text" id="flow-msisdn-btn" class="form-input" style="font-size: 12px;" value="${msisdnScreen.buttonText || 'Continue'}" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" style="font-size: 11px;">Subtitle</label>
+                <input type="text" id="flow-msisdn-subtitle" class="form-input" style="font-size: 12px;" value="${msisdnScreen.subtitle || 'Get instant access to AI Assistants'}" />
+              </div>
+            </div>
+
+            <div style="background: var(--bg-inset); border: 1px solid var(--border-subtle); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 14px;">
+              <div style="font-size: 13px; font-weight: 600; color: var(--brand-cyan); margin-bottom: 8px;">2. Plan Selection Screen</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+                <div class="form-group">
+                  <label class="form-label" style="font-size: 11px;">Screen Title</label>
+                  <input type="text" id="flow-plan-title" class="form-input" style="font-size: 12px;" value="${planScreen.title || 'Choose your AI Plan'}" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" style="font-size: 11px;">Subscribe Button Text</label>
+                  <input type="text" id="flow-plan-btn" class="form-input" style="font-size: 12px;" value="${planScreen.buttonText || 'Subscribe Now'}" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" style="font-size: 11px;">Subtitle</label>
+                <input type="text" id="flow-plan-subtitle" class="form-input" style="font-size: 12px;" value="${planScreen.subtitle || 'Billed directly to your mobile carrier'}" />
+              </div>
+            </div>
+
+            <div style="background: var(--bg-inset); border: 1px solid var(--border-subtle); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 14px;">
+              <div style="font-size: 13px; font-weight: 600; color: var(--brand-cyan); margin-bottom: 8px;">3. OTP Verification Screen</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+                <div class="form-group">
+                  <label class="form-label" style="font-size: 11px;">Screen Title</label>
+                  <input type="text" id="flow-otp-title" class="form-input" style="font-size: 12px;" value="${otpScreen.title || 'Verify OTP'}" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" style="font-size: 11px;">Verify Button Text</label>
+                  <input type="text" id="flow-otp-btn" class="form-input" style="font-size: 12px;" value="${otpScreen.buttonText || 'Confirm & Enter'}" />
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                  <label class="form-label" style="font-size: 11px;">Subtitle</label>
+                  <input type="text" id="flow-otp-subtitle" class="form-input" style="font-size: 12px;" value="${otpScreen.subtitle || 'Enter the 4-digit code sent via SMS'}" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" style="font-size: 11px;">Resend Text</label>
+                  <input type="text" id="flow-otp-resend" class="form-input" style="font-size: 12px;" value="${otpScreen.resendText || 'Resend OTP in 60s'}" />
+                </div>
+              </div>
+            </div>
+
+            <div style="background: var(--bg-inset); border: 1px solid var(--border-subtle); padding: 12px; border-radius: var(--radius-sm);">
+              <div style="font-size: 13px; font-weight: 600; color: var(--brand-cyan); margin-bottom: 8px;">4. Dashboard Screen</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                  <label class="form-label" style="font-size: 11px;">Welcome Title</label>
+                  <input type="text" id="flow-dash-title" class="form-input" style="font-size: 12px;" value="${dashboardScreen.welcomeTitle || 'Ask Any Question'}" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" style="font-size: 11px;">Subtitle</label>
+                  <input type="text" id="flow-dash-subtitle" class="form-input" style="font-size: 12px;" value="${dashboardScreen.subtitle || 'Ask questions to specialized assistants'}" />
+                </div>
+              </div>
             </div>
           </div>
 
           <div class="modal-footer" style="margin: 20px -20px -20px; padding: 14px 20px;">
             <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-close-btn').click()">Cancel</button>
-            <button type="submit" id="save-theme-btn" class="btn btn-primary">Save Theme</button>
+            <button type="submit" id="save-theme-btn" class="btn btn-primary">Save Theme & Screens</button>
           </div>
         </form>
       `,
       onRender: (overlay, close) => {
+        const tabBranding = overlay.querySelector('#tab-btn-branding');
+        const tabFlows = overlay.querySelector('#tab-btn-flows');
+        const paneBranding = overlay.querySelector('#tab-pane-branding');
+        const paneFlows = overlay.querySelector('#tab-pane-flows');
+
+        tabBranding.onclick = () => {
+          tabBranding.className = 'btn btn-primary btn-sm';
+          tabFlows.className = 'btn btn-secondary btn-sm';
+          paneBranding.style.display = 'block';
+          paneFlows.style.display = 'none';
+        };
+
+        tabFlows.onclick = () => {
+          tabFlows.className = 'btn btn-primary btn-sm';
+          tabBranding.className = 'btn btn-secondary btn-sm';
+          paneBranding.style.display = 'none';
+          paneFlows.style.display = 'block';
+        };
+
         const pColor = overlay.querySelector('#theme-primary');
         const pText = overlay.querySelector('#theme-primary-text');
         const sColor = overlay.querySelector('#theme-secondary');
         const sText = overlay.querySelector('#theme-secondary-text');
         const fontSelect = overlay.querySelector('#theme-font');
         const radiusSelect = overlay.querySelector('#theme-radius');
-        const previewBtn = overlay.querySelector('#preview-btn');
-        const previewBadge = overlay.querySelector('#preview-secondary-badge');
-        const previewBox = overlay.querySelector('#theme-preview-box');
-        const previewTitle = overlay.querySelector('#preview-title');
 
-        const updatePreview = () => {
-          previewBtn.style.background = pColor.value;
-          pText.value = pColor.value;
-          sText.value = sColor.value;
-          previewBadge.style.background = `${sColor.value}22`;
-          previewBadge.style.color = sColor.value;
-          previewBadge.style.borderColor = `${sColor.value}55`;
-          previewBox.style.borderRadius = radiusSelect.value;
-          previewTitle.style.fontFamily = fontSelect.value;
-        };
-
-        pColor.oninput = updatePreview;
+        pColor.oninput = () => { pText.value = pColor.value; };
         pText.oninput = () => {
-          if (/^#[0-9A-Fa-f]{6}$/.test(pText.value)) {
-            pColor.value = pText.value;
-          }
-          previewBtn.style.background = pText.value;
+          if (/^#[0-9A-Fa-f]{6}$/.test(pText.value)) pColor.value = pText.value;
         };
 
-        sColor.oninput = updatePreview;
+        sColor.oninput = () => { sText.value = sColor.value; };
         sText.oninput = () => {
-          if (/^#[0-9A-Fa-f]{6}$/.test(sText.value)) {
-            sColor.value = sText.value;
-          }
-          previewBadge.style.background = `${sText.value}22`;
-          previewBadge.style.color = sText.value;
-          previewBadge.style.borderColor = `${sText.value}55`;
+          if (/^#[0-9A-Fa-f]{6}$/.test(sText.value)) sColor.value = sText.value;
         };
-
-        fontSelect.onchange = updatePreview;
-        radiusSelect.onchange = updatePreview;
 
         const form = overlay.querySelector('#theme-editor-form');
         form.onsubmit = async (e) => {
@@ -393,14 +502,44 @@ export class OperatorsView {
           btn.innerText = 'Saving...';
 
           try {
-            await ApiService.put(`/api/v1/admin/operators/${operatorId}/theme`, {
+            const payload = {
               primaryColor: pColor.value,
               secondaryColor: sColor.value,
+              backgroundColor: overlay.querySelector('#theme-bg').value.trim() || '#0A0A0A',
+              textColor: overlay.querySelector('#theme-text').value.trim() || '#FFFFFF',
+              cardBgColor: overlay.querySelector('#theme-card-bg').value.trim() || '#1A1A2E',
               fontFamily: fontSelect.value,
               borderRadius: radiusSelect.value,
-              logoUrl: overlay.querySelector('#theme-logo').value || undefined,
-            });
-            Toast.success('Branding theme updated successfully');
+              logoUrl: overlay.querySelector('#theme-logo').value.trim() || undefined,
+              faviconUrl: overlay.querySelector('#theme-favicon').value.trim() || undefined,
+              heroImageUrl: overlay.querySelector('#theme-hero').value.trim() || undefined,
+              customCss: overlay.querySelector('#theme-css').value.trim() || undefined,
+              flowScreens: {
+                msisdnScreen: {
+                  title: overlay.querySelector('#flow-msisdn-title').value.trim() || undefined,
+                  subtitle: overlay.querySelector('#flow-msisdn-subtitle').value.trim() || undefined,
+                  buttonText: overlay.querySelector('#flow-msisdn-btn').value.trim() || undefined,
+                },
+                planScreen: {
+                  title: overlay.querySelector('#flow-plan-title').value.trim() || undefined,
+                  subtitle: overlay.querySelector('#flow-plan-subtitle').value.trim() || undefined,
+                  buttonText: overlay.querySelector('#flow-plan-btn').value.trim() || undefined,
+                },
+                otpScreen: {
+                  title: overlay.querySelector('#flow-otp-title').value.trim() || undefined,
+                  subtitle: overlay.querySelector('#flow-otp-subtitle').value.trim() || undefined,
+                  buttonText: overlay.querySelector('#flow-otp-btn').value.trim() || undefined,
+                  resendText: overlay.querySelector('#flow-otp-resend').value.trim() || undefined,
+                },
+                dashboardScreen: {
+                  welcomeTitle: overlay.querySelector('#flow-dash-title').value.trim() || undefined,
+                  subtitle: overlay.querySelector('#flow-dash-subtitle').value.trim() || undefined,
+                }
+              }
+            };
+
+            await ApiService.put(`/api/v1/admin/operators/${operatorId}/theme`, payload);
+            Toast.success('Branding theme and subscription flow screens updated');
             close();
             await AppState.loadOperators();
             if (container) {
@@ -409,7 +548,7 @@ export class OperatorsView {
           } catch (err) {
             Toast.error(err.message || 'Failed to update theme');
             btn.disabled = false;
-            btn.innerText = 'Save Theme';
+            btn.innerText = 'Save Theme & Screens';
           }
         };
       }
@@ -420,42 +559,59 @@ export class OperatorsView {
     const operator = AppState.operators.find(o => o.id === operatorId);
     if (!operator) return;
 
+    const settings = operator.settings || {};
+
     Modal.open({
-      title: `Policy & Settings — ${operator.name}`,
+      title: `Platform Policy & Settings — ${operator.name}`,
+      maxWidth: '560px',
       contentHtml: `
         <form id="settings-editor-form">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div style="background: var(--bg-inset); border: 1px solid var(--border-subtle); padding: 12px 14px; border-radius: var(--radius-sm); margin-bottom: 14px;">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+              <input type="checkbox" id="setting-seamless-login" ${settings.seamlessLoginEnabled !== false ? 'checked' : ''} style="width: 16px; height: 16px; accent-color: var(--brand-primary);" />
+              <div>
+                <strong style="font-size: 13px; color: var(--text-primary);">Enable Instant Seamless Login</strong>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                  Active subscribers skip OTP and log in instantly upon entering MSISDN.
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <div style="background: var(--bg-inset); border: 1px solid var(--border-subtle); padding: 12px 14px; border-radius: var(--radius-sm); margin-bottom: 14px;">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+              <input type="checkbox" id="setting-demo-enabled" ${settings.demoEnabled !== false ? 'checked' : ''} style="width: 16px; height: 16px; accent-color: var(--brand-primary);" />
+              <div>
+                <strong style="font-size: 13px; color: var(--text-primary);">Enable Free Demo Trial</strong>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                  Allows prospective subscribers to try AI questions before charging airtime.
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px;">
             <div class="form-group">
               <label class="form-label">Demo Max Messages</label>
-              <input type="number" id="setting-demo-msg" class="form-input" value="10" min="1" max="100" />
+              <input type="number" id="setting-demo-msg" class="form-input" value="${settings.demoMaxMessages || 10}" min="1" max="100" />
             </div>
 
             <div class="form-group">
               <label class="form-label">Demo Max Tokens</label>
-              <input type="number" id="setting-demo-tokens" class="form-input" value="5000" min="100" />
+              <input type="number" id="setting-demo-tokens" class="form-input" value="${settings.demoMaxTokens || 5000}" min="100" />
             </div>
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
             <div class="form-group">
-              <label class="form-label">Grace Period (Days)</label>
-              <input type="number" id="setting-grace-days" class="form-input" value="3" min="0" max="30" />
+              <label class="form-label">Trial Duration (Hours)</label>
+              <input type="number" id="setting-demo-hours" class="form-input" value="${settings.demoDurationHours || 48}" min="1" max="168" />
             </div>
 
             <div class="form-group">
-              <label class="form-label">Trial Duration (Hours)</label>
-              <input type="number" id="setting-trial-hours" class="form-input" value="48" min="1" max="168" />
+              <label class="form-label">Grace Period (Days)</label>
+              <input type="number" id="setting-grace-days" class="form-input" value="${settings.gracePeriodDays || 3}" min="0" max="30" />
             </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Terms & Conditions URL</label>
-            <input type="url" id="setting-terms" class="form-input" value="https://${operator.subdomain || 'airtel'}.tickhigh.com/terms" />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Operations Support Email</label>
-            <input type="email" id="setting-support-email" class="form-input" value="support@${operator.subdomain || 'carrier'}.com" />
           </div>
 
           <div class="modal-footer" style="margin: 20px -20px -20px; padding: 14px 20px;">
@@ -473,12 +629,12 @@ export class OperatorsView {
 
           try {
             await ApiService.put(`/api/v1/admin/operators/${operatorId}/settings`, {
+              seamlessLoginEnabled: overlay.querySelector('#setting-seamless-login').checked,
+              demoEnabled: overlay.querySelector('#setting-demo-enabled').checked,
               demoMaxMessages: parseInt(overlay.querySelector('#setting-demo-msg').value, 10),
               demoMaxTokens: parseInt(overlay.querySelector('#setting-demo-tokens').value, 10),
+              demoDurationHours: parseInt(overlay.querySelector('#setting-demo-hours').value, 10),
               gracePeriodDays: parseInt(overlay.querySelector('#setting-grace-days').value, 10),
-              trialDurationHours: parseInt(overlay.querySelector('#setting-trial-hours').value, 10),
-              termsUrl: overlay.querySelector('#setting-terms').value,
-              supportEmail: overlay.querySelector('#setting-support-email').value,
             });
             Toast.success('Operator policy settings updated');
             close();
@@ -695,21 +851,24 @@ export class OperatorsView {
     if (!operator) return;
 
     Modal.open({
-      title: `Assigned AI Assistants — ${operator.name}`,
-      maxWidth: '650px',
+      title: `Assigned AI Categories — ${operator.name}`,
+      maxWidth: '680px',
       contentHtml: `
         <div style="margin-bottom: 14px; font-size: 13px; color: var(--text-secondary);">
-          Enable or disable which AI Assistants are offered on the <strong>${operator.name}</strong> subscriber portal.
+          Enable, reorder, and configure AI categories offered on the <strong>${operator.name}</strong> subscriber portal.
         </div>
-        <div id="operator-agents-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto; padding-right: 4px;">
-          <div style="text-align: center; color: var(--text-muted); padding: 24px;">Loading assigned AI models...</div>
+        <div id="operator-agents-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; padding-right: 4px;">
+          <div style="text-align: center; color: var(--text-muted); padding: 24px;">Loading catalog and assignments...</div>
         </div>
-        <div class="modal-footer" style="margin: 20px -20px -20px; padding: 14px 20px;">
-          <button type="button" class="btn btn-primary" onclick="document.getElementById('modal-close-btn').click()">Done</button>
+        <div class="modal-footer" style="margin: 20px -20px -20px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center;">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-close-btn').click()">Cancel</button>
+          <button type="button" id="save-operator-agents-btn" class="btn btn-primary">Save All Assignments</button>
         </div>
       `,
-      onRender: async (overlay) => {
+      onRender: async (overlay, close) => {
         const listEl = overlay.querySelector('#operator-agents-list');
+        const saveBtn = overlay.querySelector('#save-operator-agents-btn');
+
         try {
           const [catalogRes, assignedRes] = await Promise.all([
             ApiService.get('/api/v1/admin/ai/catalog'),
@@ -717,62 +876,122 @@ export class OperatorsView {
           ]);
 
           const catalog = catalogRes?.data || [];
-          const assignedIds = new Set((assignedRes?.data || []).map(a => a.agentId || a.id));
+          const assignedList = assignedRes?.data || [];
+          const assignedMap = new Map();
+          assignedList.forEach((a, idx) => {
+            const key = a.agentId || a.id;
+            assignedMap.set(key, {
+              displayOrder: a.displayOrder ?? (idx + 1),
+              customName: a.customName || a.name || '',
+              minPlan: a.minPlan || '',
+              isLockedUi: Boolean(a.isLockedUi),
+            });
+          });
 
           if (catalog.length === 0) {
-            listEl.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 24px;">No agents found in global catalog.</div>';
+            listEl.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 24px;">No categories found in global catalog. Create categories in AI Categories first.</div>';
+            saveBtn.disabled = true;
             return;
           }
 
-          listEl.innerHTML = catalog.map(agent => {
-            const isAssigned = assignedIds.has(agent.id);
+          listEl.innerHTML = catalog.map((cat, idx) => {
+            const isAssigned = assignedMap.has(cat.id);
+            const data = assignedMap.get(cat.id) || {
+              displayOrder: idx + 1,
+              customName: '',
+              minPlan: '',
+              isLockedUi: false,
+            };
+
             return `
-              <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--bg-inset); border: 1px solid var(--border-subtle);">
-                <div style="display: flex; gap: 10px; align-items: center;">
-                  <div style="width: 32px; height: 32px; border-radius: 6px; background: rgba(99,102,241,0.15); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;">
-                    ${(agent.name || 'AI').charAt(0).toUpperCase()}
+              <div class="card agent-item-row" data-id="${cat.id}" style="padding: 12px 14px; background: var(--bg-inset); border: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="checkbox" class="agent-enable-check" ${isAssigned ? 'checked' : ''} style="width: 16px; height: 16px; accent-color: var(--brand-primary); cursor: pointer;" />
+                    <div style="width: 32px; height: 32px; border-radius: 6px; background: rgba(99,102,241,0.15); color: var(--brand-primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;">
+                      ${(cat.name || 'C').charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style="font-size: 13.5px; font-weight: 600; color: var(--text-primary);">${cat.name}</div>
+                      <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">${cat.slug}</div>
+                    </div>
+                  </div>
+                  <span class="badge ${isAssigned ? 'badge-success' : 'badge-neutral'} agent-status-badge">
+                    ${isAssigned ? 'Assigned' : 'Disabled'}
+                  </span>
+                </div>
+
+                <div class="agent-extra-fields" style="display: ${isAssigned ? 'grid' : 'none'}; grid-template-columns: 80px 1fr 1fr auto; gap: 8px; align-items: center; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--border-subtle);">
+                  <div>
+                    <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Order</label>
+                    <input type="number" class="form-input agent-order-input" style="padding: 4px 6px; font-size: 12px; height: 30px;" min="1" value="${data.displayOrder}" />
                   </div>
                   <div>
-                    <div style="font-size: 13px; font-weight: 600; color: var(--text-primary);">${agent.name}</div>
-                    <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">${agent.model || 'Model'} • ${agent.category || 'General'}</div>
+                    <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Custom Name</label>
+                    <input type="text" class="form-input agent-custom-name-input" style="padding: 4px 6px; font-size: 12px; height: 30px;" placeholder="${cat.name}" value="${data.customName}" />
+                  </div>
+                  <div>
+                    <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Min Plan</label>
+                    <input type="text" class="form-input agent-min-plan-input" style="padding: 4px 6px; font-size: 12px; height: 30px;" placeholder="e.g. weekly-pack" value="${data.minPlan}" />
+                  </div>
+                  <div style="display: flex; flex-direction: column; align-items: center;">
+                    <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Lock UI</label>
+                    <input type="checkbox" class="agent-lock-ui-check" ${data.isLockedUi ? 'checked' : ''} style="margin-top: 6px; width: 16px; height: 16px; accent-color: var(--brand-primary); cursor: pointer;" title="Show lock badge if subscriber plan is insufficient" />
                   </div>
                 </div>
-                <button class="btn btn-sm ${isAssigned ? 'btn-danger' : 'btn-secondary'} toggle-agent-btn" data-id="${agent.id}" data-assigned="${isAssigned}">
-                  ${isAssigned ? 'Unassign / Remove' : '+ Enable for Carrier'}
-                </button>
               </div>
             `;
           }).join('');
 
-          listEl.querySelectorAll('.toggle-agent-btn').forEach(btn => {
-            btn.onclick = async () => {
-              const agentId = btn.getAttribute('data-id');
-              const isAssigned = btn.getAttribute('data-assigned') === 'true';
-              btn.disabled = true;
+          listEl.querySelectorAll('.agent-item-row').forEach(row => {
+            const check = row.querySelector('.agent-enable-check');
+            const fields = row.querySelector('.agent-extra-fields');
+            const badge = row.querySelector('.agent-status-badge');
 
-              try {
-                if (isAssigned) {
-                  await ApiService.delete(`/api/v1/admin/operators/${operatorId}/agents/${agentId}`);
-                  Toast.success('Agent removed from carrier portal');
-                  btn.setAttribute('data-assigned', 'false');
-                  btn.className = 'btn btn-sm btn-secondary toggle-agent-btn';
-                  btn.innerText = '+ Enable for Carrier';
-                } else {
-                  await ApiService.post(`/api/v1/admin/operators/${operatorId}/agents`, { agentIds: [agentId] });
-                  Toast.success('Agent assigned to carrier portal');
-                  btn.setAttribute('data-assigned', 'true');
-                  btn.className = 'btn btn-sm btn-danger toggle-agent-btn';
-                  btn.innerText = 'Unassign / Remove';
-                }
-              } catch (err) {
-                Toast.error(err.message || 'Operation failed');
-              } finally {
-                btn.disabled = false;
-              }
+            check.onchange = () => {
+              fields.style.display = check.checked ? 'grid' : 'none';
+              badge.innerText = check.checked ? 'Assigned' : 'Disabled';
+              badge.className = `badge ${check.checked ? 'badge-success' : 'badge-neutral'} agent-status-badge`;
             };
           });
+
+          saveBtn.onclick = async () => {
+            saveBtn.disabled = true;
+            saveBtn.innerText = 'Saving Assignments...';
+
+            const payloadAgents = [];
+            listEl.querySelectorAll('.agent-item-row').forEach(row => {
+              const check = row.querySelector('.agent-enable-check');
+              if (check.checked) {
+                const agentId = row.getAttribute('data-id');
+                const displayOrder = parseInt(row.querySelector('.agent-order-input').value, 10) || 1;
+                const customName = row.querySelector('.agent-custom-name-input').value.trim() || null;
+                const minPlan = row.querySelector('.agent-min-plan-input').value.trim() || null;
+                const isLockedUi = row.querySelector('.agent-lock-ui-check').checked;
+
+                payloadAgents.push({
+                  agentId,
+                  displayOrder,
+                  customName,
+                  minPlan,
+                  isLockedUi,
+                  isActive: true,
+                });
+              }
+            });
+
+            try {
+              await ApiService.post(`/api/v1/admin/operators/${operatorId}/agents`, { agents: payloadAgents });
+              Toast.success('Operator category assignments updated successfully');
+              close();
+            } catch (err) {
+              Toast.error(err.message || 'Failed to update category assignments');
+              saveBtn.disabled = false;
+              saveBtn.innerText = 'Save All Assignments';
+            }
+          };
         } catch (err) {
-          listEl.innerHTML = `<div style="color: #fb7185; padding: 14px;">Failed to load agents: ${err.message}</div>`;
+          listEl.innerHTML = `<div style="color: #fb7185; padding: 14px;">Failed to load categories: ${err.message}</div>`;
         }
       }
     });

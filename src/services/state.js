@@ -43,6 +43,10 @@ export class AppState {
     this.notify();
   }
 
+  static setActiveOperatorId(id) {
+    return this.setActiveOperator(id);
+  }
+
   static getActiveOperator() {
     return this.operators.find(op => op.id === this.activeOperatorId) || null;
   }
