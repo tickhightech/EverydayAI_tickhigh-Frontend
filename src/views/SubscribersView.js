@@ -4,10 +4,13 @@ import { Toast } from '../components/Toast.js';
 import { Modal } from '../components/Modal.js';
 import { icons } from '../components/icons.js';
 
+const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 export class SubscribersView {
   constructor(onNavigate) {
     this.onNavigate = onNavigate;
     this.subscribers = [];
+    this.loadVersion = 0;
   }
 
   async render() {
@@ -105,21 +108,26 @@ export class SubscribersView {
       return;
     }
 
+    const version = ++this.loadVersion;
+    this.container = container;
+    this.subscribers = [];
+    container.querySelector('#subs-count-label').innerText = 'Loading subscribers…';
+    container.querySelector('#subscribers-table-body').innerHTML = '<tr><td colspan="6">Loading subscribers…</td></tr>';
     try {
-      const res = await ApiService.get(`/api/v1/admin/operators/${opId}/subscribers`).catch(() => null);
-      if (res?.success && Array.isArray(res.data)) {
-        this.subscribers = res.data;
-      } else {
-        this.subscribers = [
-          { id: 'usr-1', msisdn: '+919876543210', status: 'active', planName: 'Daily Power Pass', tokensUsed: 4200, maxTokens: 10000, createdAt: new Date(Date.now() - 86400000 * 4).toISOString() },
-          { id: 'usr-2', msisdn: '+919811223344', status: 'demo', planName: 'Free Trial', tokensUsed: 1250, maxTokens: 5000, createdAt: new Date(Date.now() - 86400000 * 1).toISOString() },
-          { id: 'usr-3', msisdn: '+919822334455', status: 'grace', planName: 'Weekly AI Pack', tokensUsed: 8900, maxTokens: 50000, createdAt: new Date(Date.now() - 86400000 * 8).toISOString() },
-          { id: 'usr-4', msisdn: '+919833445566', status: 'expired', planName: 'Daily Power Pass', tokensUsed: 10000, maxTokens: 10000, createdAt: new Date(Date.now() - 86400000 * 15).toISOString() },
-          { id: 'usr-5', msisdn: '+919844556677', status: 'active', planName: 'Monthly Unlimited', tokensUsed: 23400, maxTokens: 200000, createdAt: new Date(Date.now() - 86400000 * 20).toISOString() },
-        ];
+      const rows = [];
+      for (let offset = 0; ; offset += 100) {
+        const res = await ApiService.get(`/api/v1/admin/operators/${opId}/subscribers`, { limit: 100, offset });
+        if (version !== this.loadVersion) return;
+        if (!res?.success || !Array.isArray(res.data)) throw new Error('Invalid subscriber response');
+        rows.push(...res.data);
+        if (res.data.length < 100) break;
       }
+      this.subscribers = rows;
       this.filterList(container);
     } catch (err) {
+      if (version !== this.loadVersion) return;
+      container.querySelector('#subs-count-label').innerText = 'Unable to load subscribers';
+      container.querySelector('#subscribers-table-body').innerHTML = `<tr><td colspan="6">${escapeHtml(err.message)} — use Refresh to retry.</td></tr>`;
       Toast.error(err.message || 'Failed to fetch subscribers');
     }
   }
@@ -152,33 +160,33 @@ export class SubscribersView {
     tbody.innerHTML = list.map(sub => `
       <tr>
         <td>
-          <div style="font-weight: 600; font-family: var(--font-mono); color: #fff;">${sub.msisdn || '[Protected MSISDN]'}</div>
-          <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">${sub.id}</div>
+          <div style="font-weight: 600; font-family: var(--font-mono); color: #fff;">${escapeHtml(sub.msisdn || 'MSISDN unavailable')}</div>
+          <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">${escapeHtml(sub.id)}</div>
         </td>
         <td>
           <span class="badge ${sub.status === 'active' ? 'badge-success' : (sub.status === 'demo' ? 'badge-warning' : (sub.status === 'grace' ? 'badge-cyan' : 'badge-danger'))}">
-            ${(sub.status || 'NEW').toUpperCase()}
+            ${escapeHtml((sub.status || 'NEW').toUpperCase())}
           </span>
         </td>
         <td>
-          <span style="font-size: 12.5px;">${sub.planName || 'Standard Pass'}</span>
+          <span style="font-size: 12.5px;">${escapeHtml(sub.planName || 'No plan assigned')}</span>
         </td>
         <td>
           <div style="font-size: 11.5px; margin-bottom: 3px; font-family: var(--font-mono);">
-            ${(sub.tokensUsed || 0).toLocaleString()} / ${(sub.maxTokens || 10000).toLocaleString()}
+            ${(sub.tokensUsed || 0).toLocaleString()} / ${sub.maxTokens == null ? 'Unlimited' : sub.maxTokens.toLocaleString()}
           </div>
           <div style="height: 4px; width: 100px; background: rgba(255,255,255,0.06); border-radius: var(--radius-full); overflow: hidden;">
-            <div style="height: 100%; width: ${Math.min(100, Math.round(((sub.tokensUsed || 0) / (sub.maxTokens || 10000)) * 100))}%; background: var(--accent);"></div>
+            <div style="height: 100%; width: ${(sub.maxTokens > 0 ? Math.min(100, Math.round((sub.tokensUsed / sub.maxTokens) * 100)) : 0)}%; background: var(--accent);"></div>
           </div>
         </td>
         <td>
           <span style="font-size: 12px; color: var(--text-muted);">
-            ${new Date(sub.createdAt || Date.now()).toLocaleDateString()}
+            ${sub.createdAt ? new Date(sub.createdAt).toLocaleDateString() : '—'}
           </span>
         </td>
         <td style="text-align: right;">
-          <button class="btn btn-secondary btn-icon view-sub-btn" data-id="${sub.id}" title="Inspect Subscriber Record">
-            ${icons.search}
+          <button class="btn btn-secondary view-sub-btn" data-id="${escapeHtml(sub.id)}" title="Inspect Subscriber Record">
+            ${icons.search} Details & Tokens
           </button>
         </td>
       </tr>
@@ -190,62 +198,66 @@ export class SubscribersView {
   }
 
   openSubscriberDetailModal(subId) {
-    const sub = this.subscribers.find(s => s.id === subId) || { id: subId, msisdn: '+919876543210', status: 'active' };
-
+    const sub = this.subscribers.find(s => s.id === subId);
+    if (!sub) return;
+    const fields = {
+      'MSISDN': sub.msisdn ?? 'Unavailable — stored number could not be decoded',
+      'User ID': sub.id, 'Name': sub.displayName, 'Country': sub.countryCode,
+      'Language': sub.preferredLanguage, 'Account status': sub.accountStatus,
+      'Subscription state': sub.subscription?.state ?? 'No subscription',
+      'Plan': sub.planName ?? 'No plan assigned', 'Login count': sub.loginCount,
+      'First login': sub.firstLoginAt, 'Last login': sub.lastLoginAt,
+      'Created': sub.createdAt, 'Updated': sub.updatedAt,
+      'Tokens used': sub.tokensUsed, 'Messages used': sub.messagesUsed,
+      'Effective token limit': sub.maxTokens ?? 'Unlimited',
+      'Usage period': sub.periodType, 'Period start': sub.periodStart,
+    };
     Modal.open({
-      title: `Subscriber Details — ${sub.msisdn}`,
-      maxWidth: '520px',
+      title: `Subscriber — ${escapeHtml(sub.msisdn || sub.id)}`,
+      maxWidth: '820px',
       contentHtml: `
-        <div style="display: flex; flex-direction: column; gap: 14px;">
-          <div style="background: var(--bg-inset); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12.5px;">
-              <div>
-                <div style="color: var(--text-muted); font-size: 11px;">MSISDN</div>
-                <strong style="font-family: var(--font-mono);">${sub.msisdn}</strong>
-              </div>
-              <div>
-                <div style="color: var(--text-muted); font-size: 11px;">Status</div>
-                <span class="badge badge-success">${sub.status.toUpperCase()}</span>
-              </div>
-              <div>
-                <div style="color: var(--text-muted); font-size: 11px;">Active Plan</div>
-                <strong>${sub.planName || 'Daily Power Pass'}</strong>
-              </div>
-              <div>
-                <div style="color: var(--text-muted); font-size: 11px;">Tokens Metered</div>
-                <strong>${(sub.tokensUsed || 0).toLocaleString()} tokens</strong>
-              </div>
-            </div>
-          </div>
-
-          <div class="card" style="padding: 14px; background: var(--bg-surface);">
-            <h4 style="font-size: 13.5px; margin-bottom: 4px;">Administrative Actions</h4>
-            <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 12px;">
-              Manual account overrides for subscriber support and billing disputes.
-            </p>
-            <div style="display: flex; gap: 8px;">
-              <button type="button" class="btn btn-secondary" id="reset-demo-btn" style="flex: 1; height: 32px;">
-                Reset Demo Eligibility
-              </button>
-              <button type="button" class="btn btn-danger" id="revoke-sub-btn" style="flex: 1; height: 32px;">
-                Revoke Access
-              </button>
-            </div>
-          </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;overflow-wrap:anywhere;">
+          ${Object.entries(fields).map(([key, value]) => `<div><div style="color:var(--text-muted);font-size:11px;">${escapeHtml(key)}</div><strong>${escapeHtml(value ?? '—')}</strong></div>`).join('')}
         </div>
+        <form id="token-form" class="card" style="padding:16px;margin-bottom:20px;">
+          <h4>Manage token quota</h4>
+          <p style="color:var(--text-secondary);margin:8px 0;">Set this subscriber's token limit per usage period. Blank restores the plan/demo default; 0 blocks token usage. Existing usage is retained.</p>
+          <label for="token-limit">Token limit override</label>
+          <input id="token-limit" class="form-input" type="number" min="0" max="2147483647" step="1" value="${sub.tokenLimit ?? ''}" placeholder="Use plan/demo default" />
+          <label for="token-reason">Reason for change</label>
+          <input id="token-reason" class="form-input" minlength="3" maxlength="500" required placeholder="e.g. Customer support credit" />
+          <p id="token-error" role="alert" style="color:var(--danger);"></p>
+          <button type="submit" class="btn btn-primary" style="margin-top:12px;">Save token limit</button>
+        </form>
+        <h4>Complete subscriber record</h4>
+        <p style="color:var(--text-secondary);">Profile, subscription, plan, demo counters and all recorded usage periods.</p>
+        <pre style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;max-height:400px;overflow:auto;padding:12px;background:var(--bg-inset);">${escapeHtml(JSON.stringify(sub, null, 2))}</pre>
       `,
       onRender: (overlay, close) => {
-        overlay.querySelector('#reset-demo-btn').onclick = () => {
-          Toast.success(`Demo eligibility reset for ${sub.msisdn}`);
-          close();
-        };
-        overlay.querySelector('#revoke-sub-btn').onclick = () => {
-          if (confirm(`Revoke subscription for ${sub.msisdn}?`)) {
-            Toast.info(`Subscription revoked for ${sub.msisdn}`);
+        overlay.querySelector('#token-form').onsubmit = async event => {
+          event.preventDefault();
+          const button = overlay.querySelector('button[type="submit"]');
+          const raw = overlay.querySelector('#token-limit').value.trim();
+          const tokenLimit = raw === '' ? null : Number(raw);
+          const reason = overlay.querySelector('#token-reason').value.trim();
+          const error = overlay.querySelector('#token-error');
+          if ((tokenLimit !== null && (!Number.isInteger(tokenLimit) || tokenLimit < 0 || tokenLimit > 2147483647)) || reason.length < 3) {
+            error.textContent = 'Enter a whole token limit of 0 or more, and a reason (at least 3 characters).';
+            return;
+          }
+          button.disabled = true;
+          error.textContent = '';
+          try {
+            await ApiService.put(`/api/v1/admin/operators/${sub.operatorId}/subscribers/${sub.id}/tokens`, { tokenLimit, reason });
+            Toast.success('Subscriber token limit saved');
             close();
+            await this.loadSubscribers(this.container);
+          } catch (err) {
+            error.textContent = err.message || 'Could not save token limit';
+            button.disabled = false;
           }
         };
-      }
+      },
     });
   }
 }

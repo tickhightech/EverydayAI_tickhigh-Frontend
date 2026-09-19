@@ -62,6 +62,14 @@ const screens = {
     buttonText: "Okay",
     footerText: "Powered by you for a smarter tomorrow",
   }],
+  inProgressScreen: ['9. In Progress', {
+    badge: "Please wait",
+    title: "In Progress",
+    subtitle: "We are processing your request. Your Everyday AI journey will continue shortly.",
+    statusText: "Processing your request…",
+    waitMessage: "Please keep this page open while we finish.",
+    footerText: "Your smarter tomorrow is on its way",
+  }],
   commonScreen: ['Common & Legal', {
     disclaimer: 'Powered by Everyday AI. Carrier billing applies.',
     termsNotice: 'Subscription renews automatically. Cancel anytime as per operator terms.',
@@ -196,7 +204,7 @@ export function mountLanguageStudio(view, container) {
     <div class="studio-toolbar">
       <div>
         <h3>Subscriber screens &amp; language content</h3>
-        <p>Configure copy for the 5-step subscriber journey (Intro → Phone → Plan → OTP → Success → Dashboard &amp; Chat), the Low Balance screen, or customize individual plan offerings.</p>
+        <p>Configure copy for the 5-step subscriber journey (Intro → Phone → Plan → OTP → Success → Dashboard &amp; Chat), the Low Balance and In Progress screens, or customize individual plan offerings.</p>
       </div>
       <label>Content language
         <select id="studio-language" class="form-select">
