@@ -111,7 +111,8 @@ export class ApiService {
       this.getRefreshToken()
     ) {
       try {
-        await this.refreshAccessToken();
+        // A slower 401 may arrive after another request already refreshed.
+        if (this.getToken() === token) await this.refreshAccessToken();
         // Retry the original request once with the new access token
         return this.request(endpoint, options, true);
       } catch (refreshErr) {
@@ -154,27 +155,42 @@ export class ApiService {
     return data;
   }
 
+  // Share concurrent GETs only. Completed responses are never cached.
+  static _pendingGets = new Map();
+
   static get(endpoint, params = {}) {
     const query = new URLSearchParams(params).toString();
     const fullEndpoint = query ? `${endpoint}?${query}` : endpoint;
-    return this.request(fullEndpoint, { method: 'GET' });
+    const key = JSON.stringify([this.getToken(), fullEndpoint]);
+    let pending = this._pendingGets.get(key);
+    if (!pending) {
+      pending = this.request(fullEndpoint, { method: 'GET' }).finally(() => {
+        if (this._pendingGets.get(key) === pending) this._pendingGets.delete(key);
+      });
+      this._pendingGets.set(key, pending);
+    }
+    // Callers may edit their data; do not share mutable response objects.
+    return pending.then(data => structuredClone(data));
   }
 
   static post(endpoint, body = {}) {
+    this._pendingGets.clear();
     return this.request(endpoint, {
       method: 'POST',
       body: JSON.stringify(body),
-    });
+    }).finally(() => this._pendingGets.clear());
   }
 
   static put(endpoint, body = {}) {
+    this._pendingGets.clear();
     return this.request(endpoint, {
       method: 'PUT',
       body: JSON.stringify(body),
-    });
+    }).finally(() => this._pendingGets.clear());
   }
 
   static delete(endpoint) {
-    return this.request(endpoint, { method: 'DELETE' });
+    this._pendingGets.clear();
+    return this.request(endpoint, { method: 'DELETE' }).finally(() => this._pendingGets.clear());
   }
 }

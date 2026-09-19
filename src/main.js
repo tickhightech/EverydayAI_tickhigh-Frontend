@@ -45,7 +45,12 @@ class App {
       this.updateHeaderAndSidebar();
       if (activeOperatorId !== lastActiveOpId) {
         lastActiveOpId = activeOperatorId;
-        this.renderCurrentView();
+        const [route, query] = this.currentRoute.split('?');
+        // An explicit detail route owns its operator; syncing the header must
+        // not reload the page that just finished fetching that same operator.
+        if (route !== 'operator-detail' || !new URLSearchParams(query).get('id')) {
+          this.renderCurrentView();
+        }
       }
     });
 
@@ -59,9 +64,13 @@ class App {
   }
 
   navigateTo(route) {
-    this.currentRoute = route;
+    if (this.getRouteFromHash() === route) {
+      this.currentRoute = route;
+      this.render();
+      return;
+    }
+    // hashchange owns rendering; rendering here too launches every request twice.
     window.location.hash = `#${route}`;
-    this.render();
   }
 
   updateHeaderAndSidebar() {

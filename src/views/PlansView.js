@@ -11,7 +11,7 @@ export class PlansView {
     this.plans = [];
   }
 
-  async render() {
+  async render(initialPlans = null) {
     const container = document.createElement('div');
     container.className = 'view-container';
 
@@ -66,7 +66,12 @@ export class PlansView {
       AppState.setActiveOperator(filterSelect.value);
     };
 
-    setTimeout(() => this.loadPlans(container), 0);
+    if (Array.isArray(initialPlans)) {
+      this.plans = initialPlans;
+      this.renderPlans(container, initialPlans);
+    } else {
+      this.loadPlans(container);
+    }
 
     return container;
   }

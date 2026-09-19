@@ -45,6 +45,8 @@ export class OperatorDetailView {
   }
 
   async loadDataAndRender(container) {
+    const loadVersion = this.loadVersion = (this.loadVersion || 0) + 1;
+    this.analyticsStatus = 'loading';
     if (!this.operatorId) {
       if (AppState.operators.length > 0) {
         this.operatorId = AppState.operators[0].id;
@@ -67,17 +69,18 @@ export class OperatorDetailView {
     }
 
     try {
-      const [opRes, agentsRes, catalogRes, plansRes, analyticsRes, flowConfigRes, otpRes, checksubRes, dcbRes] = await Promise.all([
+      const [opRes, agentsRes, catalogRes, plansRes, flowConfigRes, otpRes, checksubRes, dcbRes] = await Promise.all([
         ApiService.get(`/api/v1/admin/operators/${this.operatorId}`),
         ApiService.get(`/api/v1/admin/operators/${this.operatorId}/agents`).catch(() => ({ success: true, data: [] })),
         ApiService.get('/api/v1/admin/ai/catalog').catch(() => ({ success: true, data: [] })),
         ApiService.get(`/api/v1/admin/plans?operatorId=${this.operatorId}`).catch(() => ({ success: true, data: [] })),
-        ApiService.get(`/api/v1/admin/operators/${this.operatorId}/analytics`).catch(() => ({ success: true, data: {} })),
         ApiService.get(`/api/v1/admin/operators/${this.operatorId}/flow-config`).catch(() => ({ success: true, data: null })),
         ApiService.get(`/api/v1/admin/providers/${this.operatorId}/otp/config`).catch(() => ({ success: true, data: null })),
         ApiService.get(`/api/v1/admin/providers/${this.operatorId}/checksub/config`).catch(() => ({ success: true, data: null })),
         ApiService.get(`/api/v1/admin/providers/${this.operatorId}/dcb/config`).catch(() => ({ success: true, data: null })),
       ]);
+
+      if (loadVersion !== this.loadVersion) return;
 
       if (!opRes.success || !opRes.data) {
         throw new Error(opRes.error?.message || 'Operator details not found');
@@ -91,7 +94,6 @@ export class OperatorDetailView {
       this.agents = agentsRes.data || [];
       this.catalog = catalogRes.data || [];
       this.plans = plansRes.data || [];
-      this.analytics = analyticsRes.data || {};
       this.flowConfig = flowConfigRes.data || {
         authFlow: 'simple_otp',
         checksubEnabled: false,
@@ -110,7 +112,10 @@ export class OperatorDetailView {
       }
 
       this.renderFullPage(container);
+      // Telemetry must not delay editable operator configuration.
+      this.loadAnalytics(container, loadVersion);
     } catch (err) {
+      if (loadVersion !== this.loadVersion) return;
       container.innerHTML = `
         <div class="card" style="padding: 40px; text-align: center; border-color: #fb7185;">
           <h3 style="color: #fb7185; margin-bottom: 8px;">Failed to Load Operator</h3>
@@ -120,6 +125,29 @@ export class OperatorDetailView {
       `;
       container.querySelector('#back-to-ops-err-btn')?.addEventListener('click', () => this.onNavigate('operators'));
     }
+  }
+
+  metricText(path) {
+    if (this.analyticsStatus !== 'ready') return this.analyticsStatus === 'error' ? 'Unavailable' : '…';
+    const [group, key] = path.split('.');
+    return (this.analytics[group]?.[key] || 0).toLocaleString();
+  }
+
+  async loadAnalytics(container, loadVersion) {
+    try {
+      const res = await ApiService.get(`/api/v1/admin/operators/${this.operatorId}/analytics`);
+      if (loadVersion !== this.loadVersion) return;
+      if (!res.success) throw new Error('Analytics unavailable');
+      this.analytics = res.data || {};
+      this.analyticsStatus = 'ready';
+    } catch {
+      if (loadVersion !== this.loadVersion) return;
+      this.analyticsStatus = 'error';
+    }
+    // Update only metrics, preserving unsaved form inputs and event handlers.
+    container.querySelectorAll('[data-metric]').forEach(el => {
+      el.textContent = this.metricText(el.dataset.metric);
+    });
   }
 
   renderFullPage(container) {
@@ -207,10 +235,10 @@ export class OperatorDetailView {
             <div style="color: var(--status-success); flex-shrink: 0;">${icons.users}</div>
           </div>
           <div style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-bottom: 2px; line-height: 1.2;">
-            ${(this.analytics.subscribers?.active || 0).toLocaleString()}
+            <span data-metric="subscribers.active">${this.metricText("subscribers.active")}</span>
           </div>
           <div style="font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-            Demo: <b style="color: var(--text-primary);">${this.analytics.subscribers?.demo || 0}</b> · Grace: <b style="color: var(--text-primary);">${this.analytics.subscribers?.grace || 0}</b>
+            Demo: <b style="color: var(--text-primary);"><span data-metric="subscribers.demo">${this.metricText("subscribers.demo")}</span></b> · Grace: <b style="color: var(--text-primary);"><span data-metric="subscribers.grace">${this.metricText("subscribers.grace")}</span></b>
           </div>
         </div>
 
@@ -220,10 +248,10 @@ export class OperatorDetailView {
             <div style="color: #c084fc; flex-shrink: 0;">${icons.zap}</div>
           </div>
           <div style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-bottom: 2px; line-height: 1.2;">
-            ${(this.analytics.aiUsage?.totalTokens || 0).toLocaleString()}
+            <span data-metric="aiUsage.totalTokens">${this.metricText("aiUsage.totalTokens")}</span>
           </div>
           <div style="font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-            In: ${(this.analytics.aiUsage?.tokensIn || 0).toLocaleString()} · Out: ${(this.analytics.aiUsage?.tokensOut || 0).toLocaleString()}
+            In: <span data-metric="aiUsage.tokensIn">${this.metricText("aiUsage.tokensIn")}</span> · Out: <span data-metric="aiUsage.tokensOut">${this.metricText("aiUsage.tokensOut")}</span>
           </div>
         </div>
 
@@ -904,7 +932,7 @@ export class OperatorDetailView {
     mountLanguageStudio(this, container);
     const pricing = new PlansView(this.onNavigate, this.operatorId);
     pricing.onPlansLoaded = plans => { this.plans = plans; mountLanguageStudio(this, container); };
-    pricing.render().then(el => {
+    pricing.render(this.plans).then(el => {
       const languageButton = document.createElement('button');
       languageButton.className = 'btn btn-secondary';
       languageButton.style.marginBottom = '20px';

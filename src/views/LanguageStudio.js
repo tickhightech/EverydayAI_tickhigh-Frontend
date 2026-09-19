@@ -51,6 +51,17 @@ const screens = {
     inputPlaceholder: 'Ask anything...',
     sendButtonText: 'Send'
   }],
+  lowBalanceScreen: ['8. Low Balance', {
+    badge: "Step 2 of 2",
+    title: "Low Balance",
+    subtitle: "Your balance is low. Recharge to continue your Everyday AI journey without interruption.",
+    rechargeNote: "A little recharge goes a long way",
+    benefit1Text: "Stay connected",
+    benefit2Text: "Keep learning without breaks",
+    benefit3Text: "Your smarter tomorrow awaits",
+    buttonText: "Okay",
+    footerText: "Powered by you for a smarter tomorrow",
+  }],
   commonScreen: ['Common & Legal', {
     disclaimer: 'Powered by Everyday AI. Carrier billing applies.',
     termsNotice: 'Subscription renews automatically. Cancel anytime as per operator terms.',
@@ -185,7 +196,7 @@ export function mountLanguageStudio(view, container) {
     <div class="studio-toolbar">
       <div>
         <h3>Subscriber screens &amp; language content</h3>
-        <p>Configure copy for the 5-step subscriber journey (Intro → Phone → Plan → OTP → Success → Dashboard &amp; Chat) or customize individual plan offerings.</p>
+        <p>Configure copy for the 5-step subscriber journey (Intro → Phone → Plan → OTP → Success → Dashboard &amp; Chat), the Low Balance screen, or customize individual plan offerings.</p>
       </div>
       <label>Content language
         <select id="studio-language" class="form-select">
