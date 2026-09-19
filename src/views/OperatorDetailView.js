@@ -4,7 +4,7 @@ import { ApiService } from '../services/api.js';
 import { AppState } from '../services/state.js';
 import { Toast } from '../components/Toast.js';
 import { Modal } from '../components/Modal.js';
-import { icons, getCategoryIcon } from '../components/icons.js';
+import { icons, getCategoryIcon, renderSmartIcon, CURATED_ICON_CATALOG } from '../components/icons.js';
 
 export class OperatorDetailView {
   constructor(onNavigate, operatorId) {
@@ -426,7 +426,7 @@ export class OperatorDetailView {
                 <thead>
                   <tr>
                     <th style="width: 50px;">Enable</th>
-                    <th>Category Name</th>
+                    <th style="min-width: 220px;">Category &amp; Visual Icon</th>
                     <th>Custom Carrier Title</th><th>Language names</th>
                     <th style="width: 100px;">Order</th>
                     <th>Min Subscription Plan</th>
@@ -441,6 +441,9 @@ export class OperatorDetailView {
                     const order = assigned?.displayOrder || 1;
                     const minPlan = assigned?.minPlan || '';
                     const isLocked = Boolean(assigned?.isLockedUi);
+                    const catMeta = cat.translations?._meta || {};
+                    const catColor = catMeta.color || '#6366F1';
+                    const catIconKey = catMeta.icon || cat.slug || 'bot';
 
                     return `
                       <tr class="catalog-agent-row" data-id="${cat.id}">
@@ -449,12 +452,23 @@ export class OperatorDetailView {
                         </td>
                         <td>
                           <div style="display: flex; align-items: center; gap: 10px;">
-                            <div style="width: 32px; height: 32px; border-radius: var(--radius-sm); background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; color: var(--accent); flex-shrink: 0;">
-                              ${getCategoryIcon(cat.slug || cat.name)}
-                            </div>
+                            <button type="button" class="btn-change-cat-icon cat-icon-btn" data-id="${cat.id}" title="Click to change visual icon & theme color" style="position: relative; width: 36px; height: 36px; border-radius: var(--radius-sm); background: ${catColor}1A; border: 1.5px solid ${catColor}44; display: flex; align-items: center; justify-content: center; color: ${catColor}; flex-shrink: 0; cursor: pointer; padding: 0; transition: all 0.15s ease;">
+                              <span class="cat-icon-render">
+                                ${renderSmartIcon({ icon: catIconKey, color: catColor, size: 18 })}
+                              </span>
+                              <span class="icon-edit-badge" style="position: absolute; bottom: -3px; right: -3px; width: 13px; height: 13px; border-radius: 50%; background: var(--bg-surface); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; font-size: 7.5px; color: var(--text-secondary); box-shadow: 0 1px 2px rgba(0,0,0,0.3);">✏️</span>
+                            </button>
                             <div>
-                              <div style="font-weight: 600; color: var(--text-primary); font-size: 13px;">${cat.name}</div>
-                              <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">${cat.slug}</div>
+                              <div style="display: flex; align-items: center; gap: 6px;">
+                                <span style="font-weight: 600; color: var(--text-primary); font-size: 13px;">${cat.name}</span>
+                                <button type="button" class="btn-change-cat-icon" data-id="${cat.id}" title="Change visual icon or color" style="background: transparent; border: none; padding: 0; font-size: 10.5px; color: var(--accent); cursor: pointer; display: inline-flex; align-items: center; gap: 2px; text-decoration: underline;">
+                                  Edit Icon
+                                </button>
+                              </div>
+                              <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+                                <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">${cat.slug}</span>
+                                <span class="badge badge-neutral cat-icon-name-badge" style="font-size: 9.5px; padding: 1px 5px; font-family: var(--font-mono);">${catIconKey}</span>
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -536,6 +550,11 @@ export class OperatorDetailView {
                   <div class="form-group">
                     <label class="form-label">Country Code (ISO 2-char) *</label>
                     <input type="text" id="prof-country" class="form-input" value="${op.countryCode || 'IN'}" maxlength="2" required style="text-transform: uppercase;" />
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Country Phone Code (e.g. +91)</label>
+                    <input type="text" id="prof-phone-code" class="form-input" value="${op.countryPhoneCode || op.phoneCode || '+91'}" maxlength="10" placeholder="+91" />
                   </div>
 
                   <div class="form-group">
@@ -913,12 +932,266 @@ export class OperatorDetailView {
     };
   }
 
+  openCategoryIconModal(cat, rowElement) {
+    const trans = cat.translations || {};
+    const meta = trans._meta || {};
+    let selectedIcon = meta.icon || cat.slug || 'bot';
+    let selectedColor = meta.color || '#6366F1';
+
+    const colorSwatches = [
+      '#F97316', '#10B981', '#3B82F6', '#8B5CF6',
+      '#EC4899', '#EAB308', '#EF4444', '#06B6D4',
+      '#6366F1', '#14B8A6', '#F59E0B', '#64748B'
+    ];
+
+    Modal.open({
+      title: `Update Visual Icon & Theme — ${cat.name}`,
+      maxWidth: '620px',
+      contentHtml: `
+        <form id="cat-icon-quick-form">
+          <!-- Live Preview Banner -->
+          <div style="background: var(--bg-inset); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div id="modal-icon-badge" style="width: 44px; height: 44px; border-radius: var(--radius-md); background: ${selectedColor}1A; border: 1.5px solid ${selectedColor}44; display: flex; align-items: center; justify-content: center; color: ${selectedColor}; flex-shrink: 0; transition: all 0.2s ease;">
+                ${renderSmartIcon({ icon: selectedIcon, color: selectedColor, size: 24 })}
+              </div>
+              <div>
+                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Live Card Preview</div>
+                <div id="modal-preview-title" style="font-size: 14px; font-weight: 600; color: var(--text-primary);">${cat.name}</div>
+                <div style="font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono);">${cat.slug}</div>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <span id="modal-preview-icon-name" class="badge badge-primary" style="font-family: var(--font-mono); font-size: 11px;">icon: ${selectedIcon}</span>
+            </div>
+          </div>
+
+          <!-- Curated Icon Palette -->
+          <div style="margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div>
+                <h4 style="font-size: 13px; font-weight: 700; color: var(--text-primary); margin: 0;">Curated Icon Palette</h4>
+                <p style="font-size: 11px; color: var(--text-secondary); margin: 0;">Click an icon to assign. Compatible with subscriber portals.</p>
+              </div>
+              <span id="modal-selected-icon-label" class="badge badge-neutral" style="font-size: 11px; font-weight: 600;">Selected: ${selectedIcon}</span>
+            </div>
+
+            <!-- Category Filter Tabs -->
+            <div id="modal-icon-cat-filter" style="display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px;">
+              <button type="button" class="badge badge-primary modal-icon-filter-btn" data-cat="all" style="cursor: pointer; border: none; font-size: 10px; padding: 3px 8px;">All (22)</button>
+              <button type="button" class="badge badge-neutral modal-icon-filter-btn" data-cat="Lifestyle" style="cursor: pointer; border: none; font-size: 10px; padding: 3px 8px;">Lifestyle</button>
+              <button type="button" class="badge badge-neutral modal-icon-filter-btn" data-cat="Wellness" style="cursor: pointer; border: none; font-size: 10px; padding: 3px 8px;">Wellness</button>
+              <button type="button" class="badge badge-neutral modal-icon-filter-btn" data-cat="Education" style="cursor: pointer; border: none; font-size: 10px; padding: 3px 8px;">Education</button>
+              <button type="button" class="badge badge-neutral modal-icon-filter-btn" data-cat="Finance" style="cursor: pointer; border: none; font-size: 10px; padding: 3px 8px;">Finance</button>
+              <button type="button" class="badge badge-neutral modal-icon-filter-btn" data-cat="Travel" style="cursor: pointer; border: none; font-size: 10px; padding: 3px 8px;">Travel</button>
+              <button type="button" class="badge badge-neutral modal-icon-filter-btn" data-cat="Creative" style="cursor: pointer; border: none; font-size: 10px; padding: 3px 8px;">Creative</button>
+              <button type="button" class="badge badge-neutral modal-icon-filter-btn" data-cat="Work" style="cursor: pointer; border: none; font-size: 10px; padding: 3px 8px;">Tech / Work</button>
+            </div>
+
+            <!-- Icons Grid -->
+            <div id="modal-icon-picker-grid" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 12px; max-height: 180px; overflow-y: auto; padding: 4px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-surface);">
+              ${CURATED_ICON_CATALOG.map(item => {
+                const isSelected = item.id === selectedIcon;
+                return `
+                  <button type="button" class="modal-icon-choice-btn" data-icon="${item.id}" data-cat="${item.category}" data-default-color="${item.color}" data-label="${item.label}" title="${item.label}" style="background: ${isSelected ? item.color + '1A' : 'transparent'}; border: 1.5px solid ${isSelected ? item.color : 'var(--border-subtle)'}; border-radius: var(--radius-sm); padding: 6px 3px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; color: ${isSelected ? item.color : 'var(--text-secondary)'}; font-size: 11px; transition: all 0.15s ease; box-shadow: ${isSelected ? `0 0 0 2px ${item.color}33` : 'none'};">
+                    <span style="display: flex; align-items: center; justify-content: center; width: 22px; height: 22px;">
+                      ${renderSmartIcon({ icon: item.id, color: isSelected ? item.color : 'currentColor', size: 18 })}
+                    </span>
+                    <span style="font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${item.label.split('&')[0].trim()}</span>
+                  </button>
+                `;
+              }).join('')}
+            </div>
+
+            <!-- Custom Image URL or Lucide Name -->
+            <div style="margin-bottom: 12px;">
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <input type="text" id="modal-custom-icon-input" class="form-input" placeholder="Or enter custom image URL (https://...) or Lucide icon name..." value="${selectedIcon.startsWith('http') || !CURATED_ICON_CATALOG.some(c => c.id === selectedIcon) ? selectedIcon : ''}" style="font-size: 11.5px; padding: 6px 10px;" />
+                <button type="button" id="modal-apply-custom-icon-btn" class="btn btn-secondary" style="font-size: 11px; white-space: nowrap; padding: 6px 10px;">Apply</button>
+              </div>
+              <div style="font-size: 10.5px; color: var(--text-muted); margin-top: 3px;">Supports custom external image/SVG URLs or Lucide icon names.</div>
+            </div>
+
+            <!-- Theme Accent Color -->
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-inset); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <label class="form-label" style="margin: 0; font-size: 11.5px;">Theme Accent Color:</label>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <input type="color" id="modal-cat-color" value="${selectedColor}" style="width: 28px; height: 26px; border: none; border-radius: 4px; cursor: pointer; background: transparent;" />
+                  <span id="modal-cat-color-hex" style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-primary); font-weight: 600;">${selectedColor}</span>
+                </div>
+              </div>
+              <div style="display: flex; gap: 4px; align-items: center;">
+                ${colorSwatches.map(sw => `
+                  <button type="button" class="modal-color-swatch-btn" data-color="${sw}" style="width: 17px; height: 17px; border-radius: 50%; background: ${sw}; border: 1.5px solid ${sw === selectedColor ? '#fff' : 'transparent'}; cursor: pointer; padding: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></button>
+                `).join('')}
+              </div>
+              <input type="hidden" id="modal-selected-icon-id" value="${selectedIcon}" />
+            </div>
+          </div>
+
+          <div class="modal-footer" style="margin: 20px -20px -20px; padding: 12px 20px;">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-close-btn').click()">Cancel</button>
+            <button type="submit" id="save-cat-icon-btn" class="btn btn-primary" style="display: flex; align-items: center; gap: 6px;">
+              ${icons.check} Save Icon &amp; Theme
+            </button>
+          </div>
+        </form>
+      `,
+      onRender: (overlay, close) => {
+        const form = overlay.querySelector('#cat-icon-quick-form');
+        const iconInput = overlay.querySelector('#modal-selected-icon-id');
+        const customIconInput = overlay.querySelector('#modal-custom-icon-input');
+        const applyCustomBtn = overlay.querySelector('#modal-apply-custom-icon-btn');
+        const colorInput = overlay.querySelector('#modal-cat-color');
+        const colorHex = overlay.querySelector('#modal-cat-color-hex');
+        const iconLabel = overlay.querySelector('#modal-selected-icon-label');
+        const liveIconBadge = overlay.querySelector('#modal-icon-badge');
+        const liveIconName = overlay.querySelector('#modal-preview-icon-name');
+
+        const updateAllPreviews = (iconVal, colorVal) => {
+          selectedIcon = iconVal;
+          selectedColor = colorVal;
+          iconInput.value = iconVal;
+          colorInput.value = colorVal;
+          colorHex.textContent = colorVal;
+          iconLabel.textContent = `Selected: ${iconVal}`;
+          liveIconName.textContent = `icon: ${iconVal}`;
+
+          liveIconBadge.style.background = `${colorVal}1A`;
+          liveIconBadge.style.borderColor = `${colorVal}44`;
+          liveIconBadge.style.color = colorVal;
+          liveIconBadge.innerHTML = renderSmartIcon({ icon: iconVal, color: colorVal, size: 24 });
+
+          overlay.querySelectorAll('.modal-icon-choice-btn').forEach(b => {
+            const isMatch = b.getAttribute('data-icon') === iconVal;
+            b.style.borderColor = isMatch ? colorVal : 'var(--border-subtle)';
+            b.style.background = isMatch ? `${colorVal}1A` : 'transparent';
+            b.style.color = isMatch ? colorVal : 'var(--text-secondary)';
+            b.style.boxShadow = isMatch ? `0 0 0 2px ${colorVal}33` : 'none';
+          });
+        };
+
+        overlay.querySelectorAll('.modal-icon-choice-btn').forEach(btn => {
+          btn.onclick = () => {
+            const iconId = btn.getAttribute('data-icon');
+            const defaultColor = btn.getAttribute('data-default-color') || colorInput.value;
+            customIconInput.value = '';
+            updateAllPreviews(iconId, defaultColor);
+          };
+        });
+
+        overlay.querySelectorAll('.modal-icon-filter-btn').forEach(btn => {
+          btn.onclick = () => {
+            const targetCat = btn.getAttribute('data-cat');
+            overlay.querySelectorAll('.modal-icon-filter-btn').forEach(b => {
+              b.className = b === btn ? 'badge badge-primary modal-icon-filter-btn' : 'badge badge-neutral modal-icon-filter-btn';
+            });
+            overlay.querySelectorAll('.modal-icon-choice-btn').forEach(choice => {
+              if (targetCat === 'all' || choice.getAttribute('data-cat') === targetCat) {
+                choice.style.display = 'flex';
+              } else {
+                choice.style.display = 'none';
+              }
+            });
+          };
+        });
+
+        applyCustomBtn.onclick = () => {
+          const val = customIconInput.value.trim();
+          if (val) {
+            updateAllPreviews(val, colorInput.value);
+          }
+        };
+
+        customIconInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            applyCustomBtn.click();
+          }
+        });
+
+        colorInput.oninput = () => {
+          updateAllPreviews(iconInput.value, colorInput.value);
+        };
+
+        overlay.querySelectorAll('.modal-color-swatch-btn').forEach(sw => {
+          sw.onclick = () => {
+            const picked = sw.getAttribute('data-color');
+            updateAllPreviews(iconInput.value, picked);
+          };
+        });
+
+        form.onsubmit = async (e) => {
+          e.preventDefault();
+          const btn = overlay.querySelector('#save-cat-icon-btn');
+          btn.disabled = true;
+          btn.innerText = 'Saving...';
+
+          const updatedTranslations = {
+            ...(cat.translations || {}),
+            _meta: {
+              icon: selectedIcon,
+              color: selectedColor,
+            },
+          };
+
+          try {
+            await ApiService.put(`/api/v1/admin/ai/catalog/${cat.id}`, {
+              translations: updatedTranslations,
+            });
+
+            cat.translations = updatedTranslations;
+
+            if (rowElement) {
+              const iconBox = rowElement.querySelector('.cat-icon-btn');
+              if (iconBox) {
+                iconBox.style.background = `${selectedColor}1A`;
+                iconBox.style.borderColor = `${selectedColor}44`;
+                iconBox.style.color = selectedColor;
+              }
+              const iconRender = rowElement.querySelector('.cat-icon-render');
+              if (iconRender) {
+                iconRender.innerHTML = renderSmartIcon({ icon: selectedIcon, color: selectedColor, size: 18 });
+              }
+              const nameBadge = rowElement.querySelector('.cat-icon-name-badge');
+              if (nameBadge) {
+                nameBadge.textContent = selectedIcon;
+              }
+            }
+
+            Toast.success(`Icon and color for "${cat.name}" updated successfully!`);
+            close();
+          } catch (err) {
+            Toast.error(err.message || 'Failed to update category icon');
+            btn.disabled = false;
+            btn.innerHTML = `${icons.check} Save Icon &amp; Theme`;
+          }
+        };
+      },
+    });
+  }
+
   bindEvents(container) {
     const op = this.operator;
     container.querySelectorAll('.localize-category').forEach(btn => btn.onclick = () => {
       this.selectedScreen = 'categories';
       container.querySelector('[data-tab="tab-theme"]').click();
       mountLanguageStudio(this, container);
+    });
+
+    // Icon change modal for AI categories
+    container.querySelectorAll('.btn-change-cat-icon').forEach(btn => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const catId = btn.getAttribute('data-id');
+        const cat = this.catalog.find(c => c.id === catId);
+        const row = btn.closest('.catalog-agent-row');
+        if (cat) {
+          this.openCategoryIconModal(cat, row);
+        }
+      };
     });
 
     // Back to Carriers button
@@ -1064,6 +1337,7 @@ export class OperatorDetailView {
           name: container.querySelector('#prof-name').value.trim(),
           status: container.querySelector('#prof-status').value,
           countryCode: container.querySelector('#prof-country').value.trim().toUpperCase(),
+          countryPhoneCode: container.querySelector('#prof-phone-code').value.trim() || undefined,
           platformTier: container.querySelector('#prof-tier').value,
           timezone: container.querySelector('#prof-timezone').value.trim(),
           contactEmail: container.querySelector('#prof-email').value.trim(),

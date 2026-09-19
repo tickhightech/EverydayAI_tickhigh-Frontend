@@ -205,13 +205,18 @@ export class OperatorsView {
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div class="form-group">
               <label class="form-label">Country Code (2-char) *</label>
-              <input type="text" id="new-op-country" class="form-input" placeholder="e.g. SA" required maxlength="2" minlength="2" style="text-transform: uppercase;" />
+              <input type="text" id="new-op-country" class="form-input" placeholder="e.g. IN" required maxlength="2" minlength="2" style="text-transform: uppercase;" />
             </div>
 
             <div class="form-group">
-              <label class="form-label">Operations Email *</label>
-              <input type="email" id="new-op-email" class="form-input" placeholder="ops@carrier.com" required />
+              <label class="form-label">Country Phone Code *</label>
+              <input type="text" id="new-op-phone-code" class="form-input" placeholder="e.g. +91" maxlength="10" />
             </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Operations Email *</label>
+            <input type="email" id="new-op-email" class="form-input" placeholder="ops@carrier.com" required />
           </div>
 
           <div class="modal-footer" style="margin: 20px -20px -20px; padding: 14px 20px;">
@@ -233,6 +238,7 @@ export class OperatorsView {
             code: overlay.querySelector('#new-op-code').value.trim().toLowerCase(),
             subdomain: overlay.querySelector('#new-op-subdomain').value.trim().toLowerCase(),
             countryCode: overlay.querySelector('#new-op-country').value.trim().toUpperCase(),
+            countryPhoneCode: overlay.querySelector('#new-op-phone-code').value.trim() || undefined,
             contactEmail: overlay.querySelector('#new-op-email').value.trim(),
           };
 
