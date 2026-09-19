@@ -42,6 +42,15 @@ export class ApiDocsView {
       { method: 'DELETE', path: '/api/v1/admin/ai/catalog/{id}', tag: 'AI Categories', desc: 'Delete AI category from catalog' },
       { method: 'POST', path: '/api/v1/admin/notifications/dispatch', tag: 'Broadcast', desc: 'Dispatch SMS / Push notification alert' },
       { method: 'GET', path: '/api/v1/admin/notifications/logs', tag: 'Broadcast', desc: 'Notification delivery receipts & audit log' },
+      { method: 'POST', path: '/api/v1/dummy/otp/send', tag: 'Simulator', desc: 'Flow 1: Send OTP (Returns OTP in response)' },
+      { method: 'POST', path: '/api/v1/dummy/otp/verify', tag: 'Simulator', desc: 'Flow 1: Verify OTP & Issue Tokens' },
+      { method: 'POST', path: '/api/v1/dummy/flow/checksub-first', tag: 'Simulator', desc: 'Flow 2: CheckSub First + Seamless Bypass' },
+      { method: 'POST', path: '/api/v1/dummy/flow/pack-first/send-pin', tag: 'Simulator', desc: 'Flow 3: Pack First - Send Carrier PIN' },
+      { method: 'POST', path: '/api/v1/dummy/flow/pack-first/verify-pin', tag: 'Simulator', desc: 'Flow 3: Pack First - Verify PIN & Activate' },
+      { method: 'GET', path: '/api/v1/dummy/flow/status', tag: 'Simulator', desc: 'CheckSub Status Polling (active/new_user/low_balance)' },
+      { method: 'GET', path: '/api/v1/dummy/flow/header-enrichment', tag: 'Simulator', desc: 'Flow 4: Zero-Click Cellular Header Enrichment' },
+      { method: 'POST', path: '/api/v1/dummy/simulate/set-status', tag: 'Simulator', desc: 'Simulator Control: Set active/new_user/low_balance' },
+      { method: 'POST', path: '/api/v1/dummy/simulate/reset', tag: 'Simulator', desc: 'Simulator Control: Reset mock states' },
     ];
 
     container.innerHTML = `
@@ -49,7 +58,7 @@ export class ApiDocsView {
         <div>
           <div style="display: flex; align-items: center; gap: 10px;">
             <h1 style="font-size: 22px; margin-bottom: 2px;">Portal Admin API Specification</h1>
-            <span class="badge badge-success">21 Endpoints Active</span>
+            <span class="badge badge-success">${endpoints.length} Endpoints Active</span>
           </div>
           <p style="color: var(--text-secondary); font-size: 13px;">
             Complete OpenAPI documentation, schemas, and live test harness under <code>/docs/portal-admin/</code>
