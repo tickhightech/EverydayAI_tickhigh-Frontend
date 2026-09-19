@@ -824,9 +824,9 @@ export class OperatorDetailView {
                       </select>
                     </div>
                     <label class="form-label" style="font-size: 10.5px; margin-bottom: 2px;">Endpoint URL</label>
-                    <input type="url" id="flow-gw-otp-send-endpoint" class="form-input" placeholder="https://api.carrier.com/v1/otp/send" value="${this.otpConfig?.sendEndpoint || ''}" style="font-family: var(--font-mono); font-size: 11.5px; margin-bottom: 8px;">
+                    <input type="text" id="flow-gw-otp-send-endpoint" class="form-input" placeholder="http://0.0.0.0:3000/api/v1/dummy/otp/send" value="${this.otpConfig?.sendEndpoint || ''}" style="font-family: var(--font-mono); font-size: 11.5px; margin-bottom: 8px;">
                     <label class="form-label" style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 3px;">Send Request Template (JSON / Query Body)</label>
-                    <textarea id="flow-gw-otp-send-template" class="form-textarea" rows="3" style="font-family: var(--font-mono); font-size: 11px;" placeholder='{\n  "msisdn": "{{msisdn}}",\n  "purchaseTypeId": {{planCode}},\n  "serviceId": "{{serviceId}}"\n}'>${typeof this.otpConfig?.sendRequestTemplate === 'string' ? this.otpConfig.sendRequestTemplate : this.otpConfig?.sendRequestTemplate ? JSON.stringify(this.otpConfig.sendRequestTemplate, null, 2) : ''}</textarea>
+                    <textarea id="flow-gw-otp-send-template" class="form-textarea" rows="3" style="font-family: var(--font-mono); font-size: 11px;" placeholder='{\n  "msisdn": "{{msisdn}}"\n}'>${typeof this.otpConfig?.sendRequestTemplate === 'string' ? this.otpConfig.sendRequestTemplate : this.otpConfig?.sendRequestTemplate ? JSON.stringify(this.otpConfig.sendRequestTemplate, null, 2) : ''}</textarea>
                     <div style="font-size: 10px; color: var(--text-muted); margin-top: 3px;">Available: <code>{{msisdn}}</code>, <code>{{planCode}}</code>, <code>{{serviceId}}</code></div>
                   </div>
 
@@ -840,10 +840,10 @@ export class OperatorDetailView {
                       </select>
                     </div>
                     <label class="form-label" style="font-size: 10.5px; margin-bottom: 2px;">Endpoint URL</label>
-                    <input type="url" id="flow-gw-otp-verify-endpoint" class="form-input" placeholder="https://api.carrier.com/v1/otp/verify" value="${this.otpConfig?.verifyEndpoint || ''}" style="font-family: var(--font-mono); font-size: 11.5px; margin-bottom: 8px;">
+                    <input type="text" id="flow-gw-otp-verify-endpoint" class="form-input" placeholder="http://0.0.0.0:3000/api/v1/dummy/otp/verify" value="${this.otpConfig?.verifyEndpoint || ''}" style="font-family: var(--font-mono); font-size: 11.5px; margin-bottom: 8px;">
                     <label class="form-label" style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 3px;">Verify Request Template (JSON / Query Body)</label>
-                    <textarea id="flow-gw-otp-verify-template" class="form-textarea" rows="3" style="font-family: var(--font-mono); font-size: 11px;" placeholder='{\n  "msisdn": "{{msisdn}}",\n  "otp": "{{otp}}",\n  "requestId": "{{requestId}}"\n}'>${typeof this.otpConfig?.verifyRequestTemplate === 'string' ? this.otpConfig.verifyRequestTemplate : this.otpConfig?.verifyRequestTemplate ? JSON.stringify(this.otpConfig.verifyRequestTemplate, null, 2) : ''}</textarea>
-                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 3px;">Available: <code>{{msisdn}}</code>, <code>{{otp}}</code>, <code>{{requestId}}</code>, <code>{{planCode}}</code></div>
+                    <textarea id="flow-gw-otp-verify-template" class="form-textarea" rows="3" style="font-family: var(--font-mono); font-size: 11px;" placeholder='{\n  "msisdn": "{{msisdn}}",\n  "otp": "{{otp}}",\n  "referenceId": "{{referenceId}}"\n}'>${typeof this.otpConfig?.verifyRequestTemplate === 'string' ? this.otpConfig.verifyRequestTemplate : this.otpConfig?.verifyRequestTemplate ? JSON.stringify(this.otpConfig.verifyRequestTemplate, null, 2) : ''}</textarea>
+                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 3px;">Available: <code>{{msisdn}}</code>, <code>{{otp}}</code>, <code>{{referenceId}}</code>, <code>{{planCode}}</code></div>
                   </div>
 
                   <!-- 3. CheckSub Endpoint -->
@@ -856,9 +856,9 @@ export class OperatorDetailView {
                       </select>
                     </div>
                     <label class="form-label" style="font-size: 10.5px; margin-bottom: 2px;">Checksub URL</label>
-                    <input type="url" id="flow-gw-checksub-endpoint" class="form-input" placeholder="https://api.carrier.com/checksub?msisdn={{msisdn}}" value="${this.checksubConfig?.endpoint || ''}" style="font-family: var(--font-mono); font-size: 11.5px; margin-bottom: 8px;">
+                    <input type="text" id="flow-gw-checksub-endpoint" class="form-input" placeholder="http://0.0.0.0:3000/api/v1/dummy/flow/checksub-first" value="${this.checksubConfig?.endpoint || ''}" style="font-family: var(--font-mono); font-size: 11.5px; margin-bottom: 8px;">
                     <label class="form-label" style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 3px;">Query / Body Template (Optional)</label>
-                    <textarea id="flow-gw-checksub-template" class="form-textarea" rows="3" style="font-family: var(--font-mono); font-size: 11px;" placeholder='{\n  "msisdn": "{{msisdn}}",\n  "serviceId": "{{serviceId}}"\n}'>${typeof this.checksubConfig?.requestTemplate === 'string' ? this.checksubConfig.requestTemplate : this.checksubConfig?.requestTemplate ? JSON.stringify(this.checksubConfig.requestTemplate, null, 2) : ''}</textarea>
+                    <textarea id="flow-gw-checksub-template" class="form-textarea" rows="3" style="font-family: var(--font-mono); font-size: 11px;" placeholder='{\n  "msisdn": "{{msisdn}}"\n}'>${typeof this.checksubConfig?.requestTemplate === 'string' ? this.checksubConfig.requestTemplate : this.checksubConfig?.requestTemplate ? JSON.stringify(this.checksubConfig.requestTemplate, null, 2) : ''}</textarea>
                     <div style="font-size: 10px; color: var(--text-muted); margin-top: 3px;">Supports query params or JSON body with <code>{{msisdn}}</code></div>
                   </div>
 
@@ -871,7 +871,7 @@ export class OperatorDetailView {
 
                     <div id="flow-gw-dcb-charge-group" style="margin-bottom: 8px;">
                       <label class="form-label" style="font-size: 10.5px; margin-bottom: 2px;">DCB Charge / PIN URL</label>
-                      <input type="url" id="flow-gw-dcb-charge-endpoint" class="form-input" placeholder="https://api.carrier.com/v1/dcb/charge?msisdn={{msisdn}}" value="${this.dcbConfig?.chargeEndpoint || this.dcbConfig?.endpoint || ''}" style="font-family: var(--font-mono); font-size: 11.5px;">
+                      <input type="text" id="flow-gw-dcb-charge-endpoint" class="form-input" placeholder="http://0.0.0.0:3000/api/v1/dummy/flow/pack-first/verify-pin" value="${this.dcbConfig?.chargeEndpoint || this.dcbConfig?.endpoint || ''}" style="font-family: var(--font-mono); font-size: 11.5px;">
                     </div>
                     
                     <div id="flow-gw-dcb-sync-group">
